@@ -1,0 +1,56 @@
+{
+  "name": "dp1-js",
+  "version": "0.1.0",
+  "description": "Portable DP-1 playlist parser, validator, and Ed25519 signer (browser + Node) using Zod & noble-ed25519",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts src/schema.ts src/types.ts src/crypto.ts --dts --format esm,cjs --clean",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "dp-1",
+    "display-protocol",
+    "playlist",
+    "validator",
+    "sign",
+    "ed25519",
+    "zod",
+    "typescript",
+    "browser",
+    "node"
+  ],
+  "author": "Feral File",
+  "license": "MPL-2.0",
+  "dependencies": {
+    "canonicalize": "^2.1.0",
+    "zod": "^3.23.8",
+    "semver": "^7.7.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.33.0",
+    "@types/semver": "^7.7.0",
+    "@vitest/coverage-v8": "^2.1.9",
+    "esbuild": "^0.19.12",
+    "eslint": "^9.33.0",
+    "prettier": "^3.5.3",
+    "tsup": "^8.0.2",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.5"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
