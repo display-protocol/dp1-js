@@ -182,6 +182,22 @@ describe('Crypto Functions', () => {
       expect(() => createCanonicalForm(circular)).toThrow();
     });
 
+    it('should throw error when canonicalize returns null', () => {
+      // Test with BigInt which canonicalize cannot handle
+      const invalidInput: any = {
+        dpVersion: '1.0.0',
+        id: 'test',
+        slug: 'test',
+        title: 'Test',
+        items: [],
+        bigIntValue: BigInt(9007199254740991),
+      };
+
+      expect(() => createCanonicalForm(invalidInput)).toThrow(
+        'Do not know how to serialize a BigInt'
+      );
+    });
+
     it('should handle edge cases in data types', () => {
       const edgeCasePlaylist: Omit<Playlist, 'signature'> = {
         dpVersion: '1.0.0',
@@ -376,6 +392,89 @@ describe('Crypto Functions', () => {
         const isValid = await verifyPlaylistSignature(signedPlaylist, invalidPublicKey);
         expect(isValid).toBe(false);
       });
+
+      it('should handle malformed signature hex gracefully', async () => {
+        const playlistWithMalformedSig: Playlist = {
+          ...testPlaylist,
+          signature: 'ed25519:0xZZZZ', // Invalid hex
+        };
+
+        const isValid = await verifyPlaylistSignature(playlistWithMalformedSig, keyPair.publicKey);
+        expect(isValid).toBe(false);
+      });
+
+      it('should handle empty signature hex', async () => {
+        const playlistWithEmptySig: Playlist = {
+          ...testPlaylist,
+          signature: 'ed25519:0x',
+        };
+
+        const isValid = await verifyPlaylistSignature(playlistWithEmptySig, keyPair.publicKey);
+        expect(isValid).toBe(false);
+      });
+
+      it('should handle invalid public key length', async () => {
+        const signature = await signDP1Playlist(testPlaylist, keyPair.privateKey);
+        const signedPlaylist: Playlist = { ...testPlaylist, signature };
+        const invalidPublicKey = new Uint8Array(16); // Wrong length
+
+        const isValid = await verifyPlaylistSignature(signedPlaylist, invalidPublicKey);
+        expect(isValid).toBe(false);
+      });
+    });
+  });
+
+  describe('hexToUint8Array', () => {
+    it('should convert hex string to Uint8Array', () => {
+      const hex = '48656c6c6f'; // "Hello" in hex
+      const result = hexToUint8Array(hex);
+
+      expect(result).toBeInstanceOf(Uint8Array);
+      expect(result.length).toBe(5);
+      expect(result[0]).toBe(0x48);
+      expect(result[1]).toBe(0x65);
+    });
+
+    it('should handle hex with 0x prefix', () => {
+      const hex = '0x48656c6c6f';
+      const result = hexToUint8Array(hex);
+
+      expect(result).toBeInstanceOf(Uint8Array);
+      expect(result.length).toBe(5);
+    });
+
+    it('should throw error for odd length hex string', () => {
+      const oddHex = '123'; // Odd length
+
+      expect(() => hexToUint8Array(oddHex)).toThrow('Invalid hex string: odd length');
+    });
+
+    it('should handle empty hex string', () => {
+      const emptyHex = '';
+      const result = hexToUint8Array(emptyHex);
+
+      expect(result).toBeInstanceOf(Uint8Array);
+      expect(result.length).toBe(0);
+    });
+
+    it('should handle lowercase hex', () => {
+      const hex = 'deadbeef';
+      const result = hexToUint8Array(hex);
+
+      expect(result).toBeInstanceOf(Uint8Array);
+      expect(result[0]).toBe(0xde);
+      expect(result[1]).toBe(0xad);
+      expect(result[2]).toBe(0xbe);
+      expect(result[3]).toBe(0xef);
+    });
+
+    it('should handle uppercase hex', () => {
+      const hex = 'DEADBEEF';
+      const result = hexToUint8Array(hex);
+
+      expect(result).toBeInstanceOf(Uint8Array);
+      expect(result[0]).toBe(0xde);
+      expect(result[1]).toBe(0xad);
     });
   });
 });

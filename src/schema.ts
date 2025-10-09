@@ -7,7 +7,7 @@ const MIN_DP_VERSION = '1.0.0';
 /**
  * Validates that a dpVersion is valid semver and greater than or equal to MIN_DP_VERSION
  */
-function validateDpVersion(dpVersion: string): {
+export function validateDpVersion(dpVersion: string): {
   isValid: boolean;
   error?: string;
 } {
@@ -24,30 +24,6 @@ function validateDpVersion(dpVersion: string): {
     return {
       isValid: false,
       error: `dpVersion ${dpVersion} is below minimum required version ${MIN_DP_VERSION}`,
-    };
-  }
-
-  return { isValid: true };
-}
-
-/**
- * Validates that update request doesn't contain protected fields
- */
-export function validateNoProtectedFields(body: unknown): {
-  isValid: boolean;
-  protectedFields?: string[];
-} {
-  if (!body || typeof body !== 'object') {
-    return { isValid: true };
-  }
-
-  const protectedPlaylistFields = ['id', 'slug', 'created', 'signature'];
-  const foundProtectedFields = protectedPlaylistFields.filter(field => field in body);
-
-  if (foundProtectedFields.length > 0) {
-    return {
-      isValid: false,
-      protectedFields: foundProtectedFields,
     };
   }
 
