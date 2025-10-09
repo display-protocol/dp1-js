@@ -1,11 +1,11 @@
-import { PlaylistSchema } from "./schema";
-import { Playlist } from "./types";
-import { z } from "zod";
+import { PlaylistSchema } from './schema';
+import { Playlist } from './types';
+import { z } from 'zod';
 
 export type DP1PlaylistParseResult = {
   playlist?: Playlist;
   error?: {
-    type: "invalid_json" | "validation_error";
+    type: 'invalid_json' | 'validation_error';
     message: string;
     details?: Array<{
       path: string;
@@ -34,11 +34,11 @@ export type DP1PlaylistParseResult = {
  */
 export function parseDP1Playlist(json: unknown): DP1PlaylistParseResult {
   // Validate that input is an object
-  if (!json || typeof json !== "object") {
+  if (!json || typeof json !== 'object') {
     return {
       error: {
-        type: "invalid_json",
-        message: "Input must be a valid JSON object",
+        type: 'invalid_json',
+        message: 'Input must be a valid JSON object',
       },
     };
   }
@@ -50,18 +50,16 @@ export function parseDP1Playlist(json: unknown): DP1PlaylistParseResult {
   } catch (error) {
     if (error instanceof z.ZodError) {
       // Format validation errors with detailed path information
-      const details = error.errors.map((e) => ({
-        path: e.path.join("."),
+      const details = error.errors.map(e => ({
+        path: e.path.join('.'),
         message: e.message,
       }));
 
-      const errorMessage = details
-        .map((d) => `${d.path}: ${d.message}`)
-        .join("; ");
+      const errorMessage = details.map(d => `${d.path}: ${d.message}`).join('; ');
 
       return {
         error: {
-          type: "validation_error",
+          type: 'validation_error',
           message: `Invalid playlist data: ${errorMessage}`,
           details,
         },
@@ -71,9 +69,8 @@ export function parseDP1Playlist(json: unknown): DP1PlaylistParseResult {
     // Unexpected error
     return {
       error: {
-        type: "invalid_json",
-        message:
-          error instanceof Error ? error.message : "Unknown parsing error",
+        type: 'invalid_json',
+        message: error instanceof Error ? error.message : 'Unknown parsing error',
       },
     };
   }

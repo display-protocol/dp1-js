@@ -1,8 +1,8 @@
-import { z } from "zod";
-import * as semver from "semver";
+import { z } from 'zod';
+import * as semver from 'semver';
 
 // Minimum DP-1 protocol version supported by this server
-const MIN_DP_VERSION = "1.0.0";
+const MIN_DP_VERSION = '1.0.0';
 
 /**
  * Validates that a dpVersion is valid semver and greater than or equal to MIN_DP_VERSION
@@ -33,14 +33,16 @@ function validateDpVersion(dpVersion: string): {
 /**
  * Validates that update request doesn't contain protected fields
  */
-export function validateNoProtectedFields(body: any): {
+export function validateNoProtectedFields(body: unknown): {
   isValid: boolean;
   protectedFields?: string[];
 } {
-  const protectedPlaylistFields = ["id", "slug", "created", "signature"];
-  const foundProtectedFields = protectedPlaylistFields.filter(
-    (field) => field in body
-  );
+  if (!body || typeof body !== 'object') {
+    return { isValid: true };
+  }
+
+  const protectedPlaylistFields = ['id', 'slug', 'created', 'signature'];
+  const foundProtectedFields = protectedPlaylistFields.filter(field => field in body);
 
   if (foundProtectedFields.length > 0) {
     return {
@@ -57,12 +59,9 @@ export function validateNoProtectedFields(body: any): {
 // Display Preferences Schema
 const DisplayPrefsSchema = z
   .object({
-    scaling: z.enum(["fit", "fill", "stretch", "auto"]).optional(),
+    scaling: z.enum(['fit', 'fill', 'stretch', 'auto']).optional(),
     margin: z
-      .union([
-        z.number().min(0),
-        z.string().regex(/^[0-9]+(\.[0-9]+)?(px|%|vw|vh)$/),
-      ])
+      .union([z.number().min(0), z.string().regex(/^[0-9]+(\.[0-9]+)?(px|%|vw|vh)$/)])
       .optional(),
     background: z
       .string()
@@ -120,15 +119,13 @@ const ReproSchema = z
 // Provenance Schema
 const ProvenanceSchema = z
   .object({
-    type: z.enum(["onChain", "seriesRegistry", "offChainURI"]),
+    type: z.enum(['onChain', 'seriesRegistry', 'offChainURI']),
     contract: z
       .object({
-        chain: z.enum(["evm", "tezos", "bitmark", "other"]),
-        standard: z.enum(["erc721", "erc1155", "fa2", "other"]).optional(),
+        chain: z.enum(['evm', 'tezos', 'bitmark', 'other']),
+        standard: z.enum(['erc721', 'erc1155', 'fa2', 'other']).optional(),
         address: z.string().max(48).optional(),
-        seriesId: z
-          .union([z.number().min(0).max(4294967295), z.string().max(128)])
-          .optional(),
+        seriesId: z.union([z.number().min(0).max(4294967295), z.string().max(128)]).optional(),
         tokenId: z.string().max(128).optional(),
         uri: z
           .string()
@@ -145,8 +142,8 @@ const ProvenanceSchema = z
     dependencies: z
       .array(
         z.object({
-          chain: z.enum(["evm", "tezos", "bitmark", "other"]),
-          standard: z.enum(["erc721", "erc1155", "fa2", "other"]).optional(),
+          chain: z.enum(['evm', 'tezos', 'bitmark', 'other']),
+          standard: z.enum(['erc721', 'erc1155', 'fa2', 'other']).optional(),
           uri: z
             .string()
             .regex(/^[a-zA-Z][a-zA-Z0-9+.-]*:[^\s]*$/)
@@ -167,13 +164,13 @@ const PlaylistItemSchema = z.object({
     .regex(/^[a-zA-Z][a-zA-Z0-9+.-]*:[^\s]*$/)
     .max(1024),
   duration: z.number().min(1),
-  license: z.enum(["open", "token", "subscription"]),
+  license: z.enum(['open', 'token', 'subscription']),
   ref: z
     .string()
     .regex(/^[a-zA-Z][a-zA-Z0-9+.-]*:[^\s]*$/)
     .max(1024)
     .optional(),
-  override: z.record(z.any()).optional(),
+  override: z.record(z.unknown()).optional(),
   display: DisplayPrefsSchema,
   repro: ReproSchema,
   provenance: ProvenanceSchema,
@@ -186,14 +183,14 @@ export const PlaylistSchema = z.object({
     .string()
     .max(16)
     .refine(
-      (version) => {
+      version => {
         const validation = validateDpVersion(version);
         return validation.isValid;
       },
-      (version) => {
+      version => {
         const validation = validateDpVersion(version);
         return {
-          message: validation.error || "Invalid dpVersion",
+          message: validation.error || 'Invalid dpVersion',
         };
       }
     ),
@@ -207,7 +204,7 @@ export const PlaylistSchema = z.object({
   defaults: z
     .object({
       display: DisplayPrefsSchema,
-      license: z.enum(["open", "token", "subscription"]).optional(),
+      license: z.enum(['open', 'token', 'subscription']).optional(),
       duration: z.number().min(1).optional(),
     })
     .optional(),

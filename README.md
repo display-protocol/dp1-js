@@ -1,5 +1,8 @@
 # dp1-js
 
+[![Lint](https://github.com/display-protocol/dp1-js/actions/workflows/lint.yaml/badge.svg)](https://github.com/display-protocol/dp1-js/actions/workflows/lint.yaml)
+[![codecov](https://codecov.io/gh/display-protocol/dp1-js/branch/main/graph/badge.svg)](https://codecov.io/gh/display-protocol/dp1-js)
+
 A lightweight JavaScript SDK for parsing, validating, and signing DP-1 playlists in both Node.js and browser environments.
 
 ## Overview
@@ -47,20 +50,20 @@ if (result.error) {
 import { signDP1Playlist } from 'dp1-js';
 
 const playlist = {
-  dpVersion: "1.0.0",
-  id: "playlist-123",
-  slug: "my-playlist",
-  title: "My Playlist",
+  dpVersion: '1.0.0',
+  id: 'playlist-123',
+  slug: 'my-playlist',
+  title: 'My Playlist',
   items: [
     {
-      id: "item-1",
-      title: "Artwork 1",
-      source: "https://example.com/artwork1.html",
+      id: 'item-1',
+      title: 'Artwork 1',
+      source: 'https://example.com/artwork1.html',
       duration: 30,
-      license: "open",
-      created: "2025-01-01T00:00:00Z"
-    }
-  ]
+      license: 'open',
+      created: '2025-01-01T00:00:00Z',
+    },
+  ],
 };
 
 // Sign with Ed25519 private key (as hex string or Uint8Array)
@@ -75,7 +78,7 @@ console.log('Signature:', signature);
 // Add signature to playlist
 const signedPlaylist = {
   ...playlist,
-  signature
+  signature,
 };
 ```
 
@@ -86,9 +89,11 @@ const signedPlaylist = {
 Parses and validates playlist data from unknown JSON input.
 
 **Parameters:**
+
 - `json` - Unknown JSON data to parse and validate
 
 **Returns:** `DP1PlaylistParseResult` object containing either:
+
 - `playlist` - The validated `Playlist` object (if successful)
 - `error` - Detailed error information (if validation failed)
   - `type`: `"invalid_json"` | `"validation_error"`
@@ -96,6 +101,7 @@ Parses and validates playlist data from unknown JSON input.
   - `details`: Array of specific validation errors with paths
 
 **Example:**
+
 ```typescript
 const result = parseDP1Playlist(data);
 if (result.playlist) {
@@ -109,14 +115,16 @@ if (result.playlist) {
 Signs a playlist using Ed25519 as per DP-1 specification.
 
 **Parameters:**
+
 - `playlist` - Playlist object without signature field
 - `privateKey` - Ed25519 private key as hex string or Uint8Array
 
 **Returns:** Promise resolving to signature string in format `"ed25519:0x<hex>"`
 
 **Example:**
+
 ```typescript
-const sig = await signDP1Playlist(playlist, "0x1234...");
+const sig = await signDP1Playlist(playlist, '0x1234...');
 ```
 
 ## Types
@@ -130,7 +138,7 @@ import type {
   DisplayPrefs,
   Provenance,
   Repro,
-  DP1PlaylistParseResult
+  DP1PlaylistParseResult,
 } from 'dp1-js';
 ```
 
@@ -207,11 +215,12 @@ npm run lint
 
 ## License
 
-MPL-2.0 © Feral File
+[![License: MPL 2.0](https://img.shields.io/badge/License-MPL_2.0-brightgreen.svg)](https://opensource.org/licenses/MPL-2.0)
 
 ## Contributing
 
 Contributions are welcome! Please ensure:
+
 - All tests pass (`npm test`)
 - Code follows the existing style (`npm run lint`)
 - TypeScript types are properly defined
@@ -224,5 +233,6 @@ Contributions are welcome! Please ensure:
 ## Support
 
 For issues and questions:
+
 - Open an issue on [GitHub](https://github.com/feralfile/dp1-js/issues)
 - Check the [DP-1 specification](https://github.com/display-protocol/dp1) for protocol details

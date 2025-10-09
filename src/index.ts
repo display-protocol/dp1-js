@@ -1,2 +1,2 @@
-export { parseDP1Playlist, type DP1PlaylistParseResult } from "./playlist";
-export { signDP1Playlist } from "./crypto";
+export { parseDP1Playlist, type DP1PlaylistParseResult } from './playlist';
+export { signDP1Playlist } from './crypto';

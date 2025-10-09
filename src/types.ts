@@ -1,7 +1,7 @@
 // DP-1 Core Types based on specification and OpenAPI schema
 
 export interface DisplayPrefs {
-  scaling?: "fit" | "fill" | "stretch" | "auto";
+  scaling?: 'fit' | 'fill' | 'stretch' | 'auto';
   margin?: number | string;
   background?: string;
   autoplay?: boolean;
@@ -28,10 +28,10 @@ export interface Repro {
 }
 
 export interface Provenance {
-  type: "onChain" | "seriesRegistry" | "offChainURI";
+  type: 'onChain' | 'seriesRegistry' | 'offChainURI';
   contract?: {
-    chain: "evm" | "tezos" | "bitmark" | "other";
-    standard?: "erc721" | "erc1155" | "fa2" | "other";
+    chain: 'evm' | 'tezos' | 'bitmark' | 'other';
+    standard?: 'erc721' | 'erc1155' | 'fa2' | 'other';
     address?: string;
     seriesId?: number | string;
     tokenId?: string;
@@ -39,8 +39,8 @@ export interface Provenance {
     metaHash?: string;
   };
   dependencies?: Array<{
-    chain: "evm" | "tezos" | "bitmark" | "other";
-    standard?: "erc721" | "erc1155" | "fa2" | "other";
+    chain: 'evm' | 'tezos' | 'bitmark' | 'other';
+    standard?: 'erc721' | 'erc1155' | 'fa2' | 'other';
     uri: string;
   }>;
 }
@@ -50,9 +50,9 @@ export interface PlaylistItem {
   title?: string;
   source: string;
   duration: number;
-  license: "open" | "token" | "subscription";
+  license: 'open' | 'token' | 'subscription';
   ref?: string;
-  override?: Record<string, any>;
+  override?: Record<string, unknown>;
   display?: DisplayPrefs;
   repro?: Repro;
   provenance?: Provenance;
@@ -67,7 +67,7 @@ export interface Playlist {
   created?: string;
   defaults?: {
     display?: DisplayPrefs;
-    license?: "open" | "token" | "subscription";
+    license?: 'open' | 'token' | 'subscription';
     duration?: number;
   };
   items: PlaylistItem[];
