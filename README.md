@@ -27,10 +27,15 @@ npm install dp1-js
 Or use the library directly in the browser via CDN:
 
 **Using ES Modules (Modern Browsers):**
+
 ```html
 <script type="module">
-  import { parseDP1Playlist, signDP1Playlist, verifyPlaylistSignature } from 'https://cdn.jsdelivr.net/npm/dp1-js/dist/index.js';
-  
+  import {
+    parseDP1Playlist,
+    signDP1Playlist,
+    verifyPlaylistSignature,
+  } from 'https://cdn.jsdelivr.net/npm/dp1-js/dist/index.js';
+
   // Use the functions
   const result = parseDP1Playlist(jsonData);
 </script>
@@ -195,6 +200,7 @@ if (isValid) {
 ```
 
 **Note:** The function returns `false` if:
+
 - The playlist has no signature
 - The signature format is invalid
 - The signature doesn't match the playlist content
@@ -206,11 +212,7 @@ The library exports comprehensive TypeScript types for DP-1 playlists:
 
 ```typescript
 // Functions
-import {
-  parseDP1Playlist,
-  signDP1Playlist,
-  verifyPlaylistSignature,
-} from 'dp1-js';
+import { parseDP1Playlist, signDP1Playlist, verifyPlaylistSignature } from 'dp1-js';
 
 // Types
 import type {
