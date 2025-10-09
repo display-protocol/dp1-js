@@ -1,6 +1,6 @@
 {
   "name": "dp1-js",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Portable DP-1 playlist parser, validator, and Ed25519 signer (browser + Node) using Zod & noble-ed25519",
   "type": "module",
   "main": "./dist/index.cjs",
