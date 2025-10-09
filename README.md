@@ -1,6 +1,7 @@
 # dp1-js
 
 [![Lint](https://github.com/display-protocol/dp1-js/actions/workflows/lint.yaml/badge.svg)](https://github.com/display-protocol/dp1-js/actions/workflows/lint.yaml)
+[![Test](https://github.com/display-protocol/dp1-js/actions/workflows/test.yaml/badge.svg)](https://github.com/display-protocol/dp1-js/actions/workflows/test.yaml)
 [![codecov](https://codecov.io/gh/display-protocol/dp1-js/branch/main/graph/badge.svg)](https://codecov.io/gh/display-protocol/dp1-js)
 
 A lightweight JavaScript SDK for parsing, validating, and signing DP-1 playlists in both Node.js and browser environments.
@@ -12,7 +13,7 @@ A lightweight JavaScript SDK for parsing, validating, and signing DP-1 playlists
 ## Features
 
 - **Parse & Validate** - Parse JSON and validate DP-1 playlist structure with detailed error reporting
-- **Sign Playlists** - Create Ed25519 signatures using RFC 8785 JSON canonicalization
+- **Sign & Verify** - Create and verify Ed25519 signatures using RFC 8785 JSON canonicalization
 - **Universal** - Works in both Node.js (22+) and modern browsers
 - **Type-Safe** - Full TypeScript support with comprehensive type definitions
 - **Standards Compliant** - Implements DP-1 specification with RFC 8785 canonicalization
@@ -21,6 +22,18 @@ A lightweight JavaScript SDK for parsing, validating, and signing DP-1 playlists
 
 ```bash
 npm install dp1-js
+```
+
+Or use the library directly in the browser via CDN:
+
+**Using ES Modules (Modern Browsers):**
+```html
+<script type="module">
+  import { parseDP1Playlist, signDP1Playlist, verifyPlaylistSignature } from 'https://cdn.jsdelivr.net/npm/dp1-js/dist/index.js';
+  
+  // Use the functions
+  const result = parseDP1Playlist(jsonData);
+</script>
 ```
 
 ## Quick Start
@@ -82,6 +95,40 @@ const signedPlaylist = {
 };
 ```
 
+### Verifying a Playlist Signature
+
+```typescript
+import { verifyPlaylistSignature } from 'dp1-js';
+
+// Playlist with signature
+const signedPlaylist = {
+  dpVersion: '1.0.0',
+  id: 'playlist-123',
+  slug: 'my-playlist',
+  title: 'My Playlist',
+  items: [
+    {
+      id: 'item-1',
+      title: 'Artwork 1',
+      source: 'https://example.com/artwork1.html',
+      duration: 30,
+      license: 'open',
+      created: '2025-01-01T00:00:00Z',
+    },
+  ],
+  signature: 'ed25519:0x...',
+};
+
+// Verify with Ed25519 public key (Uint8Array)
+const isValid = await verifyPlaylistSignature(signedPlaylist, publicKeyBytes);
+
+if (isValid) {
+  console.log('✓ Signature is valid');
+} else {
+  console.log('✗ Signature verification failed');
+}
+```
+
 ## API Reference
 
 ### `parseDP1Playlist(json: unknown): DP1PlaylistParseResult`
@@ -127,11 +174,45 @@ Signs a playlist using Ed25519 as per DP-1 specification.
 const sig = await signDP1Playlist(playlist, '0x1234...');
 ```
 
+### `verifyPlaylistSignature(playlist: Playlist, publicKey: Uint8Array): Promise<boolean>`
+
+Verifies a playlist's Ed25519 signature using the provided public key.
+
+**Parameters:**
+
+- `playlist` - Playlist object with signature field
+- `publicKey` - Ed25519 public key as Uint8Array (32 bytes)
+
+**Returns:** Promise resolving to `true` if signature is valid, `false` otherwise
+
+**Example:**
+
+```typescript
+const isValid = await verifyPlaylistSignature(signedPlaylist, publicKeyBytes);
+if (isValid) {
+  console.log('Signature verified successfully');
+}
+```
+
+**Note:** The function returns `false` if:
+- The playlist has no signature
+- The signature format is invalid
+- The signature doesn't match the playlist content
+- The public key is invalid or doesn't match the private key used for signing
+
 ## Types
 
 The library exports comprehensive TypeScript types for DP-1 playlists:
 
 ```typescript
+// Functions
+import {
+  parseDP1Playlist,
+  signDP1Playlist,
+  verifyPlaylistSignature,
+} from 'dp1-js';
+
+// Types
 import type {
   Playlist,
   PlaylistItem,
@@ -209,9 +290,10 @@ npm run lint
 ## How It Works
 
 1. **Parsing & Validation**: Uses [Zod](https://zod.dev/) schemas to validate playlist structure against DP-1 specification
-2. **Canonicalization**: Implements RFC 8785 JSON canonicalization for deterministic signing
+2. **Canonicalization**: Implements RFC 8785 JSON canonicalization for deterministic signing and verification
 3. **Signing**: Uses Ed25519 signatures via Web Crypto API (available in Node 22+ and modern browsers)
 4. **SHA-256 Hashing**: Creates hash of canonical JSON before signing
+5. **Verification**: Validates signatures by comparing Ed25519 signature against playlist canonical form using public key
 
 ## License
 
@@ -234,5 +316,5 @@ Contributions are welcome! Please ensure:
 
 For issues and questions:
 
-- Open an issue on [GitHub](https://github.com/feralfile/dp1-js/issues)
+- Open an issue on [GitHub](https://github.com/display-protocol/dp1-js/issues)
 - Check the [DP-1 specification](https://github.com/display-protocol/dp1) for protocol details
