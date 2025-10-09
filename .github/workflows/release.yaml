@@ -3,6 +3,8 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch: {}
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -18,10 +20,16 @@ jobs:
       - run: npm test
       - run: npm run build
 
+      - name: Show npm registry
+        run: npm config get registry
+
       - name: Configure npm auth
         run: echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Who am I (token test)
+        run: npm whoami
 
       - name: Publish to npm
         run: npm publish --access public
