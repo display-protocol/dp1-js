@@ -34,33 +34,3 @@ jobs:
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Extract version from package.json
-        id: package_version
-        run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: Release v${{ steps.package_version.outputs.VERSION }}
-          body: |
-            ## dp1-js v${{ steps.package_version.outputs.VERSION }}
-
-            📦 **npm Package:** https://www.npmjs.com/package/dp1-js/v/${{ steps.package_version.outputs.VERSION }}
-
-            ### Installation
-            ```bash
-            npm install dp1-js@${{ steps.package_version.outputs.VERSION }}
-            ```
-
-            ### CDN (Browser)
-            ```html
-            <script type="module">
-              import { parseDP1Playlist, signDP1Playlist } from 'https://cdn.jsdelivr.net/npm/dp1-js@${{ steps.package_version.outputs.VERSION }}/dist/index.js';
-            </script>
-            ```
-
-            See the [README](https://github.com/display-protocol/dp1-js#readme) for full documentation.
-          draft: false
-          prerelease: false
-          generate_release_notes: true
