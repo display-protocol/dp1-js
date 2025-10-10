@@ -227,11 +227,17 @@ import type {
 
 ### Core Types
 
+#### Playlist Types
+
 - **`Playlist`** - Complete playlist structure with metadata and items
 - **`PlaylistItem`** - Individual item in a playlist
 - **`DisplayPrefs`** - Display preferences for artwork rendering
 - **`Provenance`** - On-chain or off-chain provenance information
 - **`Repro`** - Reproduction and verification metadata
+
+#### Utility Types
+
+- **`DP1PlaylistParseResult`** - Result type from parsing operation
 
 See [types.ts](./src/types.ts) for complete type definitions.
 

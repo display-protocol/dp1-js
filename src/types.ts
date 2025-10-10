@@ -73,14 +73,3 @@ export interface Playlist {
   items: PlaylistItem[];
   signature?: string;
 }
-
-export interface ErrorResponse {
-  error: string;
-  message: string;
-}
-
-// Crypto types for ed25519 signing
-export interface KeyPair {
-  publicKey: Uint8Array;
-  privateKey: Uint8Array;
-}
