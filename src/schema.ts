@@ -129,6 +129,71 @@ const ProvenanceSchema = z
       .max(1024)
       .optional(),
   })
+  .refine(
+    data => {
+      // If type is 'onChain' or 'seriesRegistry', contract is required
+      if (data.type === 'onChain' || data.type === 'seriesRegistry') {
+        return data.contract !== undefined;
+      }
+      return true;
+    },
+    {
+      message: 'contract is required when provenance on chain or in series registry',
+      path: ['contract'],
+    }
+  )
+  .refine(
+    data => {
+      // When contract is required (onChain/seriesRegistry), address must be present
+      if (data.type === 'onChain' || data.type === 'seriesRegistry') {
+        return !!data.contract?.address;
+      }
+      return true;
+    },
+    {
+      message: 'contract.address is required for onChain or seriesRegistry provenance',
+      path: ['contract', 'address'],
+    }
+  )
+  .refine(
+    data => {
+      // For onChain, tokenId is required
+      if (data.type === 'onChain') {
+        return !!data.contract?.tokenId;
+      }
+      return true;
+    },
+    {
+      message: 'contract.tokenId is required when provenance type is onChain',
+      path: ['contract', 'tokenId'],
+    }
+  )
+  .refine(
+    data => {
+      // For seriesRegistry, seriesId is required
+      if (data.type === 'seriesRegistry') {
+        return data.contract?.seriesId !== undefined;
+      }
+      return true;
+    },
+    {
+      message: 'contract.seriesId is required when provenance type is seriesRegistry',
+      path: ['contract', 'seriesId'],
+    }
+  )
+  .refine(
+    data => {
+      // If type is 'offChainURI', contract should not be present
+      if (data.type === 'offChainURI') {
+        return data.contract === undefined;
+      }
+      return true;
+    },
+    {
+      message: 'contract is not allowed when provenance is off chain URI',
+      path: ['contract'],
+    }
+  )
   .optional();
 
 // Playlist Item Schema
