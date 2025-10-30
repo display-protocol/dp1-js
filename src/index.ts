@@ -10,3 +10,14 @@ export {
   type Provenance,
   type Repro,
 } from './types';
+
+// Validation helpers (public, schema-agnostic API)
+export {
+  validateDpVersion,
+  validateProvenance,
+  validateDisplayPrefs,
+  validateRepro,
+  validatePlaylistItem,
+  type ValidationResult,
+  type ValidationIssue,
+} from './validators';
