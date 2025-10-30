@@ -241,6 +241,46 @@ import type {
 
 See [types.ts](./src/types.ts) for complete type definitions.
 
+### Validators (schema-agnostic)
+
+This package exposes small validation helpers that do not require consumers to import our internal schemas.
+
+Available validators:
+
+- `validateDpVersion(version: string)` → ValidationResult
+- `validateDisplayPrefs(input: unknown)` → ValidationResult
+- `validateRepro(input: unknown)` → ValidationResult
+- `validateProvenance(input: unknown)` → ValidationResult
+- `validatePlaylistItem(input: unknown)` → ValidationResult
+
+Usage examples:
+
+```ts
+import { validateProvenance } from 'dp1-js';
+
+const provenance = {
+  type: 'onChain',
+  contract: { chain: 'evm', address: '0xabc', tokenId: '42' },
+};
+
+const res = validateProvenance(provenance);
+if (!res.success) {
+  console.error(res.error.message);
+  res.error.issues.forEach(i => console.error(`${i.path}: ${i.message}`));
+}
+```
+
+ValidationResult shape:
+
+```ts
+type ValidationIssue = { path: string; message: string };
+type ValidationResult =
+  | { success: true }
+  | { success: false; error: { message: string; issues: ValidationIssue[] } };
+```
+
+You can also integrate these validators into your own schema library (e.g., Zod) via `.refine` or `.superRefine` to attach issues to your app's error format.
+
 ## Playlist Structure
 
 A valid DP-1 playlist includes:

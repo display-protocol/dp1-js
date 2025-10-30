@@ -1,39 +1,10 @@
 import { z } from 'zod';
-import * as semver from 'semver';
-
-// Minimum DP-1 protocol version supported by this server
-const MIN_DP_VERSION = '1.0.0';
-
-/**
- * Validates that a dpVersion is valid semver and greater than or equal to MIN_DP_VERSION
- */
-export function validateDpVersion(dpVersion: string): {
-  isValid: boolean;
-  error?: string;
-} {
-  // First check if it's valid semver
-  if (!semver.valid(dpVersion)) {
-    return {
-      isValid: false,
-      error: `Invalid semantic version format: ${dpVersion}`,
-    };
-  }
-
-  // Check if it meets minimum version requirement
-  if (semver.lt(dpVersion, MIN_DP_VERSION)) {
-    return {
-      isValid: false,
-      error: `dpVersion ${dpVersion} is below minimum required version ${MIN_DP_VERSION}`,
-    };
-  }
-
-  return { isValid: true };
-}
+import { validateDpVersion } from './validators';
 
 // Zod Schemas for Request Validation
 
 // Display Preferences Schema
-const DisplayPrefsSchema = z
+export const DisplayPrefsSchema = z
   .object({
     scaling: z.enum(['fit', 'fill', 'stretch', 'auto']).optional(),
     margin: z
@@ -62,7 +33,7 @@ const DisplayPrefsSchema = z
   .optional();
 
 // Reproduction Schema
-const ReproSchema = z
+export const ReproSchema = z
   .object({
     engineVersion: z.record(z.string()),
     seed: z
@@ -93,7 +64,7 @@ const ReproSchema = z
   .optional();
 
 // Provenance Schema
-const ProvenanceSchema = z
+export const ProvenanceSchema = z
   .object({
     type: z.enum(['onChain', 'seriesRegistry', 'offChainURI']),
     contract: z
@@ -197,7 +168,7 @@ const ProvenanceSchema = z
   .optional();
 
 // Playlist Item Schema
-const PlaylistItemSchema = z.object({
+export const PlaylistItemSchema = z.object({
   id: z.string().uuid(),
   title: z.string().max(256).optional(),
   source: z
@@ -226,12 +197,13 @@ export const PlaylistSchema = z.object({
     .refine(
       version => {
         const validation = validateDpVersion(version);
-        return validation.isValid;
+        return validation.success;
       },
       version => {
         const validation = validateDpVersion(version);
         return {
-          message: validation.error || 'Invalid dpVersion',
+          message:
+            (validation as { error: { message: string } }).error.message || 'Invalid dpVersion',
         };
       }
     ),
