@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { validateDpVersion } from '../src/validation-utils';
 import {
-  validateDpVersion,
   validateDisplayPrefs,
   validateRepro,
   validateProvenance,

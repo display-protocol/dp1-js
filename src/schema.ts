@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { validateDpVersion } from './validators';
+import { validateDpVersion } from './validation-utils';
 
 // Zod Schemas for Request Validation
 
