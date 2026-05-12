@@ -5,7 +5,7 @@
   "license": "MPL-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/display-protocol/dp1-js-private"
+    "url": "https://github.com/display-protocol/dp1-js"
   },
   "type": "module",
   "main": "./dist/index.cjs",
