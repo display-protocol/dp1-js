@@ -101,7 +101,7 @@ console.log('Signature verified');
 
 ## Repo Layout
 
-The repository keeps the Go-style structure translated into JS:
+The repository keeps a familiar module structure in JS:
 
 - `src/playlist`
 - `src/playlistgroup`
