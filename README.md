@@ -23,13 +23,13 @@ This package keeps the DP-1 logic, tests, and repo structure aligned with `dp1-g
 ## Install
 
 ```bash
-npm install dp1-js-test
+npm install dp1-js
 ```
 
 ## Usage
 
 ```js
-import { ParseDPVersion, PayloadHashString, DisplayForItem } from 'dp1-js-test';
+import { ParseDPVersion, PayloadHashString, DisplayForItem } from 'dp1-js';
 
 const version = ParseDPVersion('1.1.0');
 const hash = PayloadHashString(Buffer.from(JSON.stringify({ title: 'Example', items: [] })));

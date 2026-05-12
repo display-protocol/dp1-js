@@ -1,5 +1,5 @@
 {
-  "name": "dp1-js-test",
+  "name": "dp1-js",
   "version": "2.0.0",
   "description": "Node.js SDK for the DP-1 protocol, ported from dp1-go with a TypeScript stack.",
   "license": "MPL-2.0",
