@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dp1.feralfile.com/schemas/v1.1.0/ref-manifest.json",
+  "type": "object",
+  "required": ["refVersion", "id", "created", "locale"],
+  "properties": {
+    "refVersion": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "id": { "type": "string", "minLength": 1 },
+    "created": { "type": "string", "format": "date-time" },
+    "locale": { "type": "string", "pattern": "^[a-z]{2}(-[A-Z]{2})?$" },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "artists": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string" },
+              "id": { "type": "string" },
+              "url": { "type": "string", "format": "uri" }
+            }
+          }
+        },
+        "creditLine": { "type": "string" },
+        "description": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "thumbnails": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["uri", "w", "h"],
+            "properties": {
+              "uri": { "type": "string", "format": "uri" },
+              "w": { "type": "integer", "minimum": 1 },
+              "h": { "type": "integer", "minimum": 1 },
+              "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+            }
+          }
+        }
+      }
+    },
+    "controls": {
+      "type": "object",
+      "properties": {
+        "display": {
+          "type": "object",
+          "properties": {
+            "scaling": { "type": "string", "enum": ["fit", "fill", "stretch", "auto"] },
+            "margin": {
+              "oneOf": [
+                { "type": "number", "minimum": 0 },
+                { "type": "string", "pattern": "^\\d+(\\.\\d+)?(px|%|vw|vh)$" }
+              ]
+            },
+            "background": {
+              "oneOf": [{ "pattern": "^#[0-9a-fA-F]{6}$" }, { "const": "transparent" }]
+            },
+            "autoplay": { "type": "boolean" },
+            "loop": { "type": "boolean" },
+            "interaction": { "type": "object" }
+          }
+        },
+        "safety": {
+          "type": "object",
+          "properties": {
+            "orientation": { "type": "array", "items": { "type": "string" } },
+            "maxCpuPct": { "type": "integer" },
+            "maxMemMB": { "type": "integer" }
+          }
+        }
+      }
+    },
+    "i18n": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "description": { "type": "string" },
+          "creditLine": { "type": "string" }
+        }
+      }
+    }
+  }
+}

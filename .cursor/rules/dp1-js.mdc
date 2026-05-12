@@ -1,0 +1,11 @@
+---
+description: Project rules for dp1-js
+globs:
+  - "**/*"
+---
+
+- Keep the repo Node-only and dependency-light.
+- Preserve the dp1-go-aligned module layout under `src/`.
+- Prefer built-in Node APIs for JSON, crypto, and filesystem behavior.
+- Keep documentation, workflows, and tests aligned with any exported API changes.
+- Do not introduce browser-specific assumptions unless the request explicitly broadens the runtime.

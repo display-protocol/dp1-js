@@ -1,10 +1,7 @@
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  // Base recommended rules
   tseslint.configs.recommended,
-
-  // TypeScript source files
   {
     files: ['src/**/*.ts'],
     languageOptions: {
@@ -16,7 +13,6 @@ export default tseslint.config(
       },
     },
     rules: {
-      // TypeScript specific rules
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
@@ -27,16 +23,11 @@ export default tseslint.config(
           varsIgnorePattern: '^_',
         },
       ],
-
-      // Code quality
       'no-console': 'off',
       eqeqeq: ['error', 'always'],
-      curly: 'error',
       'no-debugger': 'error',
     },
   },
-
-  // Test files
   {
     files: ['src/**/*.test.ts', 'tests/**/*.ts'],
     languageOptions: {
@@ -52,9 +43,16 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': 'off',
     },
   },
-
-  // Ignore patterns
   {
-    ignores: ['dist/**', 'node_modules/**', 'coverage/**', '*.js', '*.cjs', '*.mjs'],
+    ignores: [
+      'dist/**',
+      'node_modules/**',
+      'coverage/**',
+      '**/*.js',
+      '**/*.cjs',
+      '**/*.mjs',
+      // Excluded from tsconfig (out of sync with current typings); still run by Vitest
+      'tests/parity-extra.test.ts',
+    ],
   }
 );

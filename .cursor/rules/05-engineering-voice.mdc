@@ -1,0 +1,32 @@
+---
+description: Writing voice for dp1-js docs, comments, and messages
+alwaysApply: false
+---
+
+# Engineering Voice Rule
+
+Apply this when generating docs, comments, error messages, or user-facing text.
+
+## Comments
+
+- Write clear prose; prefer why and constraints over line-by-line narration.
+- When documenting symbols, lead with purpose and invariants relevant to DP-1 correctness.
+
+## Voice
+
+- Pragmatic, clear, direct.
+- Short sentences.
+- Honest about limits and next steps.
+- Use `we` where it reads naturally.
+- Avoid jargon unless it is DP-1 or cryptography-specific and necessary.
+
+## Terminology
+
+- Prefer precise terms: DP-1, playlist, validation, canonicalization, signature, merge.
+- Use backticks for commands, files, directories, functions, and exported API names.
+
+## Docs
+
+- Start with why, then what/how, then examples.
+- Keep headings skimmable and paragraphs short.
+- Prefer concrete examples over abstractions.

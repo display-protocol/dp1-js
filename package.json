@@ -1,11 +1,24 @@
 {
   "name": "dp1-js",
-  "version": "1.1.2",
-  "description": "Portable DP-1 playlist parser, validator, and Ed25519 signer (browser + Node) using Zod & noble-ed25519",
+  "version": "2.0.0",
+  "description": "Node.js SDK for the DP-1 protocol, ported from dp1-go with a TypeScript stack.",
+  "license": "MPL-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/display-protocol/dp1-js-private"
+  },
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./package.json": "./package.json"
+  },
   "files": [
     "dist",
     "README.md",
@@ -22,42 +35,24 @@
     "format:check": "prettier --check .",
     "prepare": "npm run build"
   },
-  "keywords": [
-    "dp-1",
-    "display-protocol",
-    "playlist",
-    "validator",
-    "sign",
-    "ed25519",
-    "zod",
-    "typescript",
-    "browser",
-    "node"
-  ],
-  "author": "Feral File",
-  "license": "MPL-2.0",
   "dependencies": {
-    "canonicalize": "^2.1.0",
-    "semver": "^7.7.2",
-    "zod": "^3.23.8"
+    "@noble/curves": "^2.2.0",
+    "@noble/hashes": "^2.2.0",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
   },
   "devDependencies": {
-    "@eslint/js": "^9.33.0",
+    "@eslint/js": "^10.0.1",
     "@types/node": "^24.7.0",
-    "@types/semver": "^7.7.0",
-    "@vitest/coverage-v8": "^2.1.9",
-    "esbuild": "^0.19.12",
-    "eslint": "^9.33.0",
-    "prettier": "^3.5.3",
-    "tsup": "^8.0.2",
-    "typescript": "^5.7.3",
-    "typescript-eslint": "^8.46.0",
-    "vitest": "^2.1.5"
+    "@vitest/coverage-v8": "^4.1.5",
+    "eslint": "^10.3.0",
+    "prettier": "^3.8.3",
+    "tsup": "^8.5.1",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^4.1.5"
   },
   "engines": {
     "node": ">=22"
-  },
-  "publishConfig": {
-    "access": "public"
   }
 }

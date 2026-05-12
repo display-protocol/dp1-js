@@ -1,0 +1,44 @@
+---
+description: Core repository contract for dp1-js agentic work
+alwaysApply: true
+---
+
+# dp1-js Master Contract
+
+The authoritative repository contract is `AGENTS.md`. This rule summarizes Cursor-facing expectations; if anything conflicts, follow `AGENTS.md`.
+
+## Repository scope
+
+- Node.js SDK for [DP-1](https://github.com/display-protocol/dp1): parsing, validation, canonicalization, signing primitives, merge helpers.
+- **Non-goals:** full player, renderer, license server, or browser bundle unless explicitly in scope for the task.
+
+## Non-negotiables
+
+- Prefer the simplest change that preserves correctness and debuggability.
+- Avoid silent failure paths; errors must be explicit and actionable.
+- Preserve the dp1-go-aligned module layout under `src/` when adding or moving code.
+- Keep dependencies minimal; prefer built-in Node APIs unless a dependency clearly improves correctness.
+- Keep validation and canonicalization semantics stable once behavior is public unless the task explicitly changes protocol alignment.
+
+## Comments and types
+
+- Prefer comments that explain why, invariants, and protocol expectations where non-obvious.
+- Use TypeScript types honestly; do not paper over errors with `any` unless unavoidable and localized.
+
+## Documentation
+
+- Keep `README.md`, GitHub workflows, and `.cursor/rules/` aligned with exported API changes when those files are part of the task.
+- Do not add unsolicited process or marketing docs.
+
+## Verification
+
+Before considering work complete:
+
+```bash
+npm run lint
+npm test
+```
+
+Use `npm run type-check` when types are part of the change surface.
+
+If a change touches signing or canonicalization, add regression tests for the exact payload shape and hash behavior.

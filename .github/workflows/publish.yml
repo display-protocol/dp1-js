@@ -1,0 +1,124 @@
+name: publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g. 1.0.3)'
+        required: true
+        type: string
+      beta:
+        description: 'Publish to the beta dist-tag (false = latest)'
+        required: false
+        default: true
+        type: boolean
+
+  release:
+    types: [published]
+
+# sync-version needs write; publish only reads the repo.
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      beta: ${{ steps.meta.outputs.beta }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: https://registry.npmjs.org
+
+      # Manual runs use inputs; GitHub Release uses tag name (strip leading v) and prerelease → beta dist-tag.
+      - name: Resolve publish version and dist-tag
+        id: meta
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+            echo "beta=${{ inputs.beta }}" >> "$GITHUB_OUTPUT"
+          else
+            TAG="${{ github.event.release.tag_name }}"
+            VERSION="${TAG#v}"
+            echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+            if [ "${{ github.event.release.prerelease }}" = "true" ]; then
+              echo "beta=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "beta=false" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+
+      - run: npm ci
+      - name: Set package version
+        run: npm version "${{ steps.meta.outputs.version }}" --no-git-tag-version
+      - run: npm run lint
+      - run: npm test
+      - name: Verify npm authentication
+        run: npm whoami
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish to npm (beta)
+        if: steps.meta.outputs.beta == 'true'
+        run: npm publish --tag beta --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish to npm (latest)
+        if: steps.meta.outputs.beta != 'true'
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # Only bump package.json on main for stable (latest) publishes; skip for beta/pre-releases.
+  sync-version:
+    name: Sync version on default branch
+    needs: publish
+    if: needs.publish.outputs.beta != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Match package version to published release
+        env:
+          RELEASE_VERSION: ${{ needs.publish.outputs.version }}
+        run: |
+          set -euo pipefail
+          CURRENT="$(node -p "require('./package.json').version")"
+          if [ "${CURRENT}" = "${RELEASE_VERSION}" ]; then
+            echo "package.json already at ${RELEASE_VERSION}; nothing to sync."
+            exit 0
+          fi
+          npm version "${RELEASE_VERSION}" --no-git-tag-version
+
+      - name: Commit and push version bump
+        env:
+          RELEASE_VERSION: ${{ needs.publish.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "chore(release): sync version to ${RELEASE_VERSION}"
+          DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
+          git push origin "HEAD:refs/heads/${DEFAULT_BRANCH}"

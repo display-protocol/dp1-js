@@ -1,0 +1,29 @@
+---
+description: TDD workflow and verification gates for dp1-js
+alwaysApply: true
+---
+
+# Testing and Verification Rule
+
+## Required sequence
+
+1. Write or update focused tests first when behavior changes.
+2. Implement until tests pass.
+3. Refactor while keeping tests green.
+4. Run the full verification commands before handoff or completion.
+
+## Constraints
+
+- Do not ship behavior changes without test coverage unless there is a clear, explicit reason stated in the handoff.
+- Prefer unit tests for pure logic and targeted integration tests for boundaries (e.g. signing round-trips, merge cases).
+- Treat missing or failing tests as part of the work, not follow-up work.
+
+## Required verification commands
+
+```bash
+npm run lint
+npm run type-check
+npm test
+```
+
+Fix failures and rerun until clean. Use `npm run build` when distribution output or `tsup` config is part of the change.

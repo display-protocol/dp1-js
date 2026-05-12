@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dp1.feralfile.com/extensions/playlists/v0.1.0/schema.json",
+  "type": "object",
+  "properties": {
+    "note": { "$ref": "#/$defs/Note" },
+    "items": {
+      "type": "array",
+      "items": { "type": "object", "properties": { "note": { "$ref": "#/$defs/Note" } } }
+    },
+    "curators": { "type": "array", "items": { "$ref": "#/$defs/Entity" } },
+    "summary": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "coverImage": { "type": "string", "format": "uri" },
+    "dynamicQuery": { "$ref": "#/$defs/DynamicQuery" }
+  },
+  "$defs": {
+    "Note": {
+      "type": "object",
+      "required": ["text"],
+      "properties": {
+        "text": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "duration": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "Entity": {
+      "type": "object",
+      "required": ["name", "key"],
+      "properties": {
+        "name": { "type": "string" },
+        "key": { "type": "string", "pattern": "^did:[a-z]+:.+$" },
+        "url": { "type": "string", "format": "uri" }
+      }
+    },
+    "DynamicQuery": {
+      "type": "object",
+      "required": ["profile", "endpoint", "responseMapping"],
+      "properties": {
+        "profile": { "type": "string", "enum": ["https-json-v1", "graphql-v1"] },
+        "endpoint": { "type": "string", "format": "uri" },
+        "method": { "type": "string", "enum": ["GET", "POST"] },
+        "headers": { "type": "object", "additionalProperties": { "type": "string" } },
+        "query": { "type": "string" },
+        "responseMapping": { "$ref": "#/$defs/ResponseMapping" }
+      }
+    },
+    "ResponseMapping": {
+      "type": "object",
+      "required": ["itemsPath", "itemSchema"],
+      "properties": {
+        "itemsPath": { "type": "string" },
+        "itemSchema": { "type": "string", "pattern": "^dp1/\\d+\\.\\d+$" },
+        "itemMap": { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    }
+  }
+}

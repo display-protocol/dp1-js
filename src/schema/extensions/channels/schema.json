@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dp1.feralfile.com/extensions/channels/v0.1.0/schema.json",
+  "type": "object",
+  "required": ["id", "slug", "title", "version", "created", "playlists"],
+  "anyOf": [{ "required": ["signatures"] }, { "required": ["signature"] }],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "slug": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "created": { "type": "string", "format": "date-time" },
+    "playlists": { "type": "array", "minItems": 1, "items": { "type": "string", "format": "uri" } },
+    "curators": { "type": "array", "items": { "$ref": "#/$defs/Entity" } },
+    "publisher": { "$ref": "#/$defs/Entity" },
+    "summary": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "coverImage": { "type": "string", "format": "uri" },
+    "signatures": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/Signature" } },
+    "signature": { "type": "string", "pattern": "^ed25519:[a-f0-9]+$", "deprecated": true }
+  },
+  "$defs": {
+    "Entity": {
+      "type": "object",
+      "required": ["name", "key"],
+      "properties": {
+        "name": { "type": "string" },
+        "key": { "type": "string", "pattern": "^did:[a-z]+:.+$" },
+        "url": { "type": "string", "format": "uri" }
+      }
+    },
+    "Signature": {
+      "type": "object",
+      "required": ["alg", "kid", "ts", "payload_hash", "role", "sig"],
+      "properties": {
+        "alg": { "type": "string", "enum": ["ed25519", "eip191", "ecdsa-secp256k1", "ecdsa-p256"] },
+        "kid": { "type": "string", "pattern": "^did:[a-z]+:.+$" },
+        "ts": { "type": "string", "format": "date-time" },
+        "payload_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "role": {
+          "type": "string",
+          "enum": ["curator", "feed", "agent", "institution", "licensor"]
+        },
+        "sig": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$" }
+      }
+    }
+  }
+}
