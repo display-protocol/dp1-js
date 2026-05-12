@@ -12,8 +12,8 @@ export default defineConfig({
         'tests/**',
         '**/*.d.ts',
         '**/*.config.*',
-        '**/index.ts', // Exclude index.ts (just exports)
-        '**/types.ts', // Exclude types.ts (just type definitions)
+        '**/index.ts',
+        '**/types.ts',
       ],
     },
   },
