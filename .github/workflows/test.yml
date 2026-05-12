@@ -32,5 +32,5 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          slug: display-protocol/dp1-js-private
+          slug: display-protocol/dp1-js
           flags: unittests
