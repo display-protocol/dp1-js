@@ -137,16 +137,19 @@ test('PlaylistsExtensionFragment_validationFailures', () => {
 
 test('PlaylistItem_OK_and_invalid', () => {
   assert.doesNotThrow(() => PlaylistItem(Buffer.from('{"source":"https://example.com/a"}')));
-  assert.throws(() => PlaylistItem(Buffer.from('{}')), err => {
-    if (!(err instanceof Error)) return false;
-    const details = (err as { details?: unknown }).details;
-    return (
-      err.cause === ErrValidation &&
-      Array.isArray(details) &&
-      typeof details[0] === 'object' &&
-      details[0] !== null &&
-      'path' in details[0] &&
-      'message' in details[0]
-    );
-  });
+  assert.throws(
+    () => PlaylistItem(Buffer.from('{}')),
+    err => {
+      if (!(err instanceof Error)) return false;
+      const details = (err as { details?: unknown }).details;
+      return (
+        err.cause === ErrValidation &&
+        Array.isArray(details) &&
+        typeof details[0] === 'object' &&
+        details[0] !== null &&
+        'path' in details[0] &&
+        'message' in details[0]
+      );
+    }
+  );
 });

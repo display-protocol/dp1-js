@@ -22,7 +22,11 @@ for (const schema of [
   ajv.addSchema(schema);
 }
 
-function validationError(message: string, details: Array<{ path: string; message: string }>, cause?: unknown) {
+function validationError(
+  message: string,
+  details: Array<{ path: string; message: string }>,
+  cause?: unknown
+) {
   return Object.assign(new Error(message), {
     cause: cause ?? ErrValidation,
     details,
