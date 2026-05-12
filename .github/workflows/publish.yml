@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to publish (e.g. 1.0.3)'
+        description: "Version to publish (e.g. 1.0.3)"
         required: true
         type: string
       beta:
-        description: 'Publish to the beta dist-tag (false = latest)'
+        description: "Publish to the beta dist-tag (false = latest)"
         required: false
         default: true
         type: boolean
@@ -29,7 +29,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
           registry-url: https://registry.npmjs.org
 
       # Manual runs use inputs; GitHub Release uses tag name (strip leading v) and prerelease → beta dist-tag.
@@ -67,8 +67,15 @@ jobs:
           fi
       - run: npm run lint
       - run: npm test
+      # 401 here = missing/expired NPM_TOKEN, or token without registry access. Configure an npm access token as repo (or org) secret NPM_TOKEN.
       - name: Verify npm authentication
-        run: npm whoami
+        run: |
+          set -euo pipefail
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "::error::NPM_TOKEN is empty. Add an npm access token under Settings → Secrets and variables → Actions (name: NPM_TOKEN)."
+            exit 1
+          fi
+          npm whoami
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Publish to npm (beta)
