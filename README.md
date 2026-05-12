@@ -1,7 +1,7 @@
 # dp1-js
 
-[![Lint](https://github.com/feral-file/dp1-js/actions/workflows/lint.yml/badge.svg)](https://github.com/feral-file/dp1-js/actions/workflows/lint.yml)
-[![Test](https://github.com/feral-file/dp1-js/actions/workflows/test.yml/badge.svg)](https://github.com/feral-file/dp1-js/actions/workflows/test.yml)
+[![Lint](https://github.com/feral-file/dp1-js/actions/workflows/lint.yaml/badge.svg)](https://github.com/feral-file/dp1-js/actions/workflows/lint.yaml)
+[![Test](https://github.com/feral-file/dp1-js/actions/workflows/test.yaml/badge.svg)](https://github.com/feral-file/dp1-js/actions/workflows/test.yaml)
 
 Node.js SDK for the [DP-1 protocol](https://github.com/display-protocol/dp1), kept intentionally dependency-light.
 
