@@ -85,7 +85,9 @@ const channel = ParseAndValidateChannel(rawChannel);
 console.log(channel.title);
 ```
 
-### Sign and verify a playlist
+### Sign and verify a playlist (legacy v1.0.x)
+
+`ParseAndValidatePlaylist` requires either a v1.1.0 `signatures` array or a legacy v1.0.x `signature` field. Signing helpers operate on the **unsigned** JSON payload (without signature fields):
 
 ```ts
 import { signDP1Playlist, verifyPlaylistSignature } from 'dp1-js';
@@ -111,13 +113,29 @@ console.log(signature);
 console.log('Signature verified');
 ```
 
+For v1.1.0 multi-signature documents, use `SignMultiEd25519` / `VerifyPlaylistSignatures` from the signing API after schema-validating the unsigned payload.
+
 ## API Notes
 
 - `parseDP1Playlist(json)` returns a `{ playlist, error }` result for already-parsed JSON input.
-- `ParseAndValidatePlaylist(data)` and `ParseAndValidateChannel(data)` accept raw JSON as `Buffer` or string.
-- `signDP1Playlist(raw, privateKey)` returns an `ed25519:...` signature string.
+- `ParseAndValidatePlaylist(data)` and `ParseAndValidateChannel(data)` accept raw JSON as `Buffer` or string and require signatures (multi-sig or legacy).
+- `signDP1Playlist(raw, privateKey)` returns a legacy `ed25519:<hex>` signature string for v1.0.x playlists.
 - `verifyPlaylistSignature(raw, signature, publicKey)` throws if verification fails.
 - `ParseDPVersion(version)` is available for version parsing and major-version checks.
+- `DisplayForItem(def, ref, item)` merges display preferences using the same field-level overlay order as `dp1-go`.
+
+## Validation parity with dp1-go
+
+Embedded JSON Schema files under `src/schema/` are kept in sync with [`display-protocol/dp1-go`](https://github.com/display-protocol/dp1-go) (`internal/schema/`). Payloads that passed validation under older, looser schemas may now fail — for example invalid `license` values, provenance blocks without `type`, or ref-manifest thumbnails missing required dimensions.
+
+Refresh schemas from dp1-go:
+
+```bash
+npm run sync-schemas
+npm run check-schemas
+```
+
+See [CHANGELOG.md](./CHANGELOG.md) for breaking validation changes.
 
 ## Repo Layout
 
@@ -138,6 +156,7 @@ npm install
 npm run lint
 npm run type-check
 npm test
+npm run check-schemas
 ```
 
 ## Requirements

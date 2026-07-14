@@ -83,6 +83,7 @@ function overlayDisplay(dst: DisplayPrefs, src: DisplayPrefs) {
       if (!dst.interaction.mouse) dst.interaction.mouse = {};
       const m = dst.interaction.mouse;
       const sm = src.interaction.mouse;
+      // Match dp1-go overlayDisplay: only propagate true flags; false cannot disable lower layers.
       if (sm.click) m.click = sm.click;
       if (sm.scroll) m.scroll = sm.scroll;
       if (sm.drag) m.drag = sm.drag;
@@ -94,30 +95,33 @@ function overlayDisplay(dst: DisplayPrefs, src: DisplayPrefs) {
   }
 }
 
-function tryParseInteraction(raw: unknown): InteractionPrefs | null {
-  if (raw === undefined || raw === null) return null;
-  if (typeof raw !== 'object' || Array.isArray(raw)) return null;
+function parseRefInteraction(raw: unknown): InteractionPrefs | 'invalid' {
+  if (raw === undefined || raw === null) return {};
+  if (typeof raw !== 'object' || Array.isArray(raw)) return 'invalid';
 
   const obj = raw as Record<string, unknown>;
   const out: InteractionPrefs = {};
 
   if ('keyboard' in obj) {
     if (!Array.isArray(obj.keyboard) || !obj.keyboard.every(value => typeof value === 'string')) {
-      return null;
+      return 'invalid';
     }
     if (obj.keyboard.length > 0) out.keyboard = [...obj.keyboard];
   }
 
-  if ('mouse' in obj && obj.mouse !== undefined) {
-    if (!isRecord(obj.mouse)) return null;
+  if ('mouse' in obj) {
+    if (obj.mouse === null) {
+      return out;
+    }
+    if (!isRecord(obj.mouse)) return 'invalid';
     const mouse: MousePrefs = {};
     for (const key of ['click', 'scroll', 'drag', 'hover'] as const) {
       if (key in obj.mouse) {
-        if (typeof obj.mouse[key] !== 'boolean') return null;
-        if (obj.mouse[key]) mouse[key] = true;
+        if (typeof obj.mouse[key] !== 'boolean') return 'invalid';
+        mouse[key] = obj.mouse[key];
       }
     }
-    if (Object.keys(mouse).length > 0) out.mouse = mouse;
+    out.mouse = mouse;
   }
 
   return out;
@@ -131,12 +135,12 @@ function applyDisplayJSON(dst: DisplayPrefs, src: DisplayControls) {
   if (src.loop !== undefined) dst.loop = src.loop;
   if (src.interaction !== undefined && src.interaction !== null) {
     if (!dst.interaction) dst.interaction = {};
-    const parsed = tryParseInteraction(src.interaction);
-    if (parsed) {
+    const parsed = parseRefInteraction(src.interaction);
+    if (parsed !== 'invalid') {
       if (parsed.keyboard && parsed.keyboard.length > 0) {
         dst.interaction.keyboard = parsed.keyboard;
       }
-      if (parsed.mouse) {
+      if (parsed.mouse !== undefined) {
         dst.interaction.mouse = { ...parsed.mouse };
       }
     }

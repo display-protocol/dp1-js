@@ -33,6 +33,8 @@
     "type-check": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "sync-schemas": "scripts/sync-schemas-from-dp1-go.sh",
+    "check-schemas": "scripts/check-schemas-sync.sh",
     "prepare": "npm run build"
   },
   "dependencies": {

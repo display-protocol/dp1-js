@@ -119,6 +119,51 @@ test('applyDisplayJSON_invalidInteractionIgnored', () => {
   assert.deepEqual(display, { scaling: 'stretch', interaction: {} });
 });
 
+test('applyDisplayJSON_refInteractionKeepsKeyboardWhenMouseNull', () => {
+  const [display] = DisplayForItem(
+    null,
+    {
+      controls: {
+        display: {
+          interaction: { keyboard: ['Space'], mouse: null } as unknown as object,
+        },
+      },
+    },
+    null
+  );
+  assert.deepEqual(display, { interaction: { keyboard: ['Space'] } });
+});
+
+test('DisplayForItem_itemMouseFalseDoesNotClearRefFlags', () => {
+  const [display] = DisplayForItem(
+    null,
+    {
+      controls: {
+        display: {
+          interaction: { mouse: { scroll: true, drag: true } },
+        },
+      },
+    },
+    {
+      display: {
+        interaction: { mouse: { click: false } },
+      },
+    }
+  );
+  assert.deepEqual(display, {
+    interaction: { mouse: { scroll: true, drag: true } },
+  });
+});
+
+test('DisplayForItem_itemAutoplayFalseOverlay', () => {
+  const [display] = DisplayForItem(
+    { display: { scaling: 'fit', autoplay: true } },
+    null,
+    { display: { autoplay: false } }
+  );
+  assert.deepEqual(display, { scaling: 'fit', autoplay: false });
+});
+
 test('DisplayForItem_returnsIsolatedCopy', () => {
   const def = { display: { interaction: { keyboard: ['KeyA'], mouse: { click: true } } } };
   const ref = {
