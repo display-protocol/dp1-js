@@ -32,11 +32,21 @@ npm install dp1-js
 import { ParseAndValidatePlaylist } from 'dp1-js';
 
 const rawPlaylist = JSON.stringify({
-  dpVersion: '1.0.0',
+  dpVersion: '1.1.0',
   title: 'Example Playlist',
   items: [
     {
       source: 'https://example.com/artwork.html',
+    },
+  ],
+  signatures: [
+    {
+      alg: 'ed25519',
+      kid: 'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
+      ts: '2025-01-01T00:00:00Z',
+      payload_hash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      role: 'curator',
+      sig: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
     },
   ],
 });
@@ -52,12 +62,22 @@ console.log(playlist.title);
 import { ParseAndValidateChannel } from 'dp1-js';
 
 const rawChannel = JSON.stringify({
-  id: 'channel-123',
+  id: '385f79b6-a45f-4c1c-8080-e93a192adccc',
   slug: 'example-channel',
   title: 'Example Channel',
   version: '1.0.0',
   created: '2025-01-01T00:00:00Z',
   playlists: ['https://example.com/playlist-1.json'],
+  signatures: [
+    {
+      alg: 'ed25519',
+      kid: 'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
+      ts: '2025-01-01T00:00:00Z',
+      payload_hash: 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
+      role: 'feed',
+      sig: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+    },
+  ],
 });
 
 const channel = ParseAndValidateChannel(rawChannel);

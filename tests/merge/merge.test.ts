@@ -45,6 +45,14 @@ test('DisplayForItem_overrideThenItem_itemWins', () => {
   assert.deepEqual(display, { scaling: 'fill' });
 });
 
+test('DisplayForItem_emptyDisplayOverride_itemWins', () => {
+  const [display] = DisplayForItem(null, null, {
+    override: { display: {} },
+    display: { scaling: 'fill' },
+  });
+  assert.deepEqual(display, { scaling: 'fill' });
+});
+
 test('DisplayForItem_refThenOverrideThenItem', () => {
   const [display] = DisplayForItem(
     null,
@@ -87,8 +95,11 @@ test('DisplayForItem_fullOverlay', () => {
   assert.deepEqual(display, {
     scaling: 'auto',
     autoplay: true,
-    interaction: { keyboard: ['Enter'], mouse: { hover: true } },
-    userOverrides: { margin: true },
+    interaction: {
+      keyboard: ['Enter'],
+      mouse: { scroll: true, drag: true, hover: true },
+    },
+    userOverrides: { scaling: true, margin: true },
     margin: '5%',
     background: '#111111',
     loop: true,
@@ -105,7 +116,7 @@ test('applyDisplayJSON_invalidInteractionIgnored', () => {
     },
     null
   );
-  assert.deepEqual(display, { scaling: 'stretch', interaction: { keyboard: 42 } });
+  assert.deepEqual(display, { scaling: 'stretch', interaction: {} });
 });
 
 test('DisplayForItem_returnsIsolatedCopy', () => {

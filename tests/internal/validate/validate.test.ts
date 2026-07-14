@@ -131,6 +131,36 @@ test('ChannelsExtension_validationFailures', () => {
   );
 });
 
+test('ChannelsExtension_acceptsPublisherRole', () => {
+  assert.doesNotThrow(() =>
+    ChannelsExtension(
+      Buffer.from(
+        '{"id":"385f79b6-a45f-4c1c-8080-e93a192adccc","slug":"s","title":"c","version":"1.0.0","created":"2025-01-01T00:00:00Z","playlists":["https://p"],"signatures":[{"alg":"ed25519","kid":"did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK","ts":"2025-01-01T00:00:00Z","payload_hash":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","role":"publisher","sig":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}]}'
+      )
+    )
+  );
+});
+
+test('Playlist_rejectsInvalidLicenseMode', () => {
+  assert.throws(() =>
+    Playlist(
+      Buffer.from(
+        '{"dpVersion":"1.1.0","title":"x","items":[{"source":"https://a","license":"invalid"}],"signatures":[{"alg":"ed25519","kid":"did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK","ts":"2025-01-01T00:00:00Z","payload_hash":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","role":"curator","sig":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}]}'
+      )
+    )
+  );
+});
+
+test('Playlist_rejectsProvenanceWithoutType', () => {
+  assert.throws(() =>
+    Playlist(
+      Buffer.from(
+        '{"dpVersion":"1.1.0","title":"x","items":[{"source":"https://a","provenance":{"contract":{"chain":"evm"}}}],"signatures":[{"alg":"ed25519","kid":"did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK","ts":"2025-01-01T00:00:00Z","payload_hash":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","role":"curator","sig":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}]}'
+      )
+    )
+  );
+});
+
 test('PlaylistsExtensionFragment_validationFailures', () => {
   assert.throws(() => PlaylistsExtensionFragment(Buffer.from('{"summary":""}')));
 });
