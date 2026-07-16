@@ -132,7 +132,6 @@ Refresh schemas from dp1-go (requires [GitHub CLI](https://cli.github.com/) auth
 
 ```bash
 npm run sync-schemas
-npm run check-schemas
 ```
 
 Optional: set `DP1_GO_REPO=your-org/dp1-go-fork` to sync from a fork instead of `display-protocol/dp1-go`.
@@ -158,14 +157,13 @@ npm install
 npm run lint
 npm run type-check
 npm test
-npm run check-schemas
 ```
 
 ## Requirements
 
 - Node.js 22+
 - npm for dependency installation
-- [GitHub CLI](https://cli.github.com/) (`gh`) for `npm run sync-schemas` and `npm run check-schemas` (CI uses `GITHUB_TOKEN`; local runs need `gh auth login`)
+- [GitHub CLI](https://cli.github.com/) (`gh`) for `npm run sync-schemas` (local runs need `gh auth login`)
 
 ## Notes
 

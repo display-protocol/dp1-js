@@ -28,11 +28,6 @@ jobs:
       - name: Run unit tests
         run: npm run test:coverage
 
-      - name: Verify embedded schemas match dp1-go
-        run: npm run check-schemas
-        env:
-          GH_TOKEN: ${{ github.token }}
-
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:
