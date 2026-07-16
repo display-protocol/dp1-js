@@ -134,7 +134,7 @@ test('applyDisplayJSON_refInteractionKeepsKeyboardWhenMouseNull', () => {
   assert.deepEqual(display, { interaction: { keyboard: ['Space'] } });
 });
 
-test('DisplayForItem_itemMouseFalseDoesNotClearRefFlags', () => {
+test('DisplayForItem_itemMouseFalseClearsRefFlags', () => {
   const [display] = DisplayForItem(
     null,
     {
@@ -151,7 +151,7 @@ test('DisplayForItem_itemMouseFalseDoesNotClearRefFlags', () => {
     }
   );
   assert.deepEqual(display, {
-    interaction: { mouse: { scroll: true, drag: true } },
+    interaction: { mouse: { click: false, scroll: true, drag: true } },
   });
 });
 

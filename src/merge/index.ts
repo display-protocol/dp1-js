@@ -83,11 +83,11 @@ function overlayDisplay(dst: DisplayPrefs, src: DisplayPrefs) {
       if (!dst.interaction.mouse) dst.interaction.mouse = {};
       const m = dst.interaction.mouse;
       const sm = src.interaction.mouse;
-      // Match dp1-go overlayDisplay: only propagate true flags; false cannot disable lower layers.
-      if (sm.click) m.click = sm.click;
-      if (sm.scroll) m.scroll = sm.scroll;
-      if (sm.drag) m.drag = sm.drag;
-      if (sm.hover) m.hover = sm.hover;
+      // Overlay uses explicit booleans so item-level false can clear inherited true flags.
+      if (sm.click !== undefined) m.click = sm.click;
+      if (sm.scroll !== undefined) m.scroll = sm.scroll;
+      if (sm.drag !== undefined) m.drag = sm.drag;
+      if (sm.hover !== undefined) m.hover = sm.hover;
     }
   }
   if (src.userOverrides && Object.keys(src.userOverrides).length > 0) {
