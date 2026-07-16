@@ -134,6 +134,21 @@ test('applyDisplayJSON_refInteractionKeepsKeyboardWhenMouseNull', () => {
   assert.deepEqual(display, { interaction: { keyboard: ['Space'] } });
 });
 
+test('applyDisplayJSON_refInteractionClearsKeyboardWithEmptyArray', () => {
+  const [display] = DisplayForItem(
+    { display: { interaction: { keyboard: ['KeyA'] } } },
+    {
+      controls: {
+        display: {
+          interaction: { keyboard: [] },
+        },
+      },
+    },
+    null
+  );
+  assert.deepEqual(display, { interaction: { keyboard: [] } });
+});
+
 test('DisplayForItem_itemMouseFalseClearsRefFlags', () => {
   const [display] = DisplayForItem(
     null,
@@ -153,6 +168,15 @@ test('DisplayForItem_itemMouseFalseClearsRefFlags', () => {
   assert.deepEqual(display, {
     interaction: { mouse: { click: false, scroll: true, drag: true } },
   });
+});
+
+test('DisplayForItem_itemKeyboardEmptyClearsInheritedKeyboard', () => {
+  const [display] = DisplayForItem(
+    { display: { interaction: { keyboard: ['KeyA'] } } },
+    null,
+    { display: { interaction: { keyboard: [] } } }
+  );
+  assert.deepEqual(display, { interaction: { keyboard: [] } });
 });
 
 test('DisplayForItem_itemAutoplayFalseOverlay', () => {

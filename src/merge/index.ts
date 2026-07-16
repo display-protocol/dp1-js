@@ -76,7 +76,7 @@ function overlayDisplay(dst: DisplayPrefs, src: DisplayPrefs) {
   if (src.loop !== undefined) dst.loop = src.loop;
   if (src.interaction) {
     if (!dst.interaction) dst.interaction = {};
-    if (src.interaction.keyboard && src.interaction.keyboard.length > 0) {
+    if (src.interaction.keyboard !== undefined) {
       dst.interaction.keyboard = [...src.interaction.keyboard];
     }
     if (src.interaction.mouse) {
@@ -106,7 +106,7 @@ function parseRefInteraction(raw: unknown): InteractionPrefs | 'invalid' {
     if (!Array.isArray(obj.keyboard) || !obj.keyboard.every(value => typeof value === 'string')) {
       return 'invalid';
     }
-    if (obj.keyboard.length > 0) out.keyboard = [...obj.keyboard];
+    out.keyboard = [...obj.keyboard];
   }
 
   if ('mouse' in obj) {
@@ -137,7 +137,7 @@ function applyDisplayJSON(dst: DisplayPrefs, src: DisplayControls) {
     if (!dst.interaction) dst.interaction = {};
     const parsed = parseRefInteraction(src.interaction);
     if (parsed !== 'invalid') {
-      if (parsed.keyboard && parsed.keyboard.length > 0) {
+      if (parsed.keyboard !== undefined) {
         dst.interaction.keyboard = parsed.keyboard;
       }
       if (parsed.mouse !== undefined) {
