@@ -7,10 +7,16 @@ REPO="${DP1_GO_REPO:-display-protocol/dp1-go}"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
+decode_base64() {
+  python3 -c 'import base64, sys
+data = sys.stdin.read()
+sys.stdout.buffer.write(base64.b64decode(data))'
+}
+
 compare() {
   local remote_path="$1"
   local local_path="$2"
-  gh api "repos/${REPO}/contents/${remote_path}" --jq '.content' | base64 -d >"${TMP}/upstream.json"
+  gh api "repos/${REPO}/contents/${remote_path}" --jq '.content' | decode_base64 >"${TMP}/upstream.json"
   if ! diff -q "${TMP}/upstream.json" "${ROOT}/${local_path}" >/dev/null; then
     echo "schema drift: ${local_path} differs from ${REPO}/${remote_path}" >&2
     diff -u "${TMP}/upstream.json" "${ROOT}/${local_path}" >&2 || true

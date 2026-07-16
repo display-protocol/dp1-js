@@ -68,6 +68,13 @@ function cloneDisplay(display: DisplayPrefs): DisplayPrefs {
   return out;
 }
 
+function overlayMousePrefs(dst: MousePrefs, src: MousePrefs) {
+  if (src.click !== undefined) dst.click = src.click;
+  if (src.scroll !== undefined) dst.scroll = src.scroll;
+  if (src.drag !== undefined) dst.drag = src.drag;
+  if (src.hover !== undefined) dst.hover = src.hover;
+}
+
 function overlayDisplay(dst: DisplayPrefs, src: DisplayPrefs) {
   if (src.scaling) dst.scaling = src.scaling;
   if (hasMargin(src.margin)) dst.margin = src.margin;
@@ -81,13 +88,8 @@ function overlayDisplay(dst: DisplayPrefs, src: DisplayPrefs) {
     }
     if (src.interaction.mouse) {
       if (!dst.interaction.mouse) dst.interaction.mouse = {};
-      const m = dst.interaction.mouse;
-      const sm = src.interaction.mouse;
-      // Overlay uses explicit booleans so item-level false can clear inherited true flags.
-      if (sm.click !== undefined) m.click = sm.click;
-      if (sm.scroll !== undefined) m.scroll = sm.scroll;
-      if (sm.drag !== undefined) m.drag = sm.drag;
-      if (sm.hover !== undefined) m.hover = sm.hover;
+      // Overlay uses explicit booleans so later layers can clear inherited true flags.
+      overlayMousePrefs(dst.interaction.mouse, src.interaction.mouse);
     }
   }
   if (src.userOverrides && Object.keys(src.userOverrides).length > 0) {
@@ -141,7 +143,8 @@ function applyDisplayJSON(dst: DisplayPrefs, src: DisplayControls) {
         dst.interaction.keyboard = parsed.keyboard;
       }
       if (parsed.mouse !== undefined) {
-        dst.interaction.mouse = { ...parsed.mouse };
+        if (!dst.interaction.mouse) dst.interaction.mouse = {};
+        overlayMousePrefs(dst.interaction.mouse, parsed.mouse);
       }
     }
   }

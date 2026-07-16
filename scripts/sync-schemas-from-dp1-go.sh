@@ -7,10 +7,16 @@ REPO="${DP1_GO_REPO:-display-protocol/dp1-go}"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
+decode_base64() {
+  python3 -c 'import base64, sys
+data = sys.stdin.read()
+sys.stdout.buffer.write(base64.b64decode(data))'
+}
+
 fetch() {
   local remote_path="$1"
   local local_path="$2"
-  gh api "repos/${REPO}/contents/${remote_path}" --jq '.content' | base64 -d >"${TMP}/$(basename "$local_path")"
+  gh api "repos/${REPO}/contents/${remote_path}" --jq '.content' | decode_base64 >"${TMP}/$(basename "$local_path")"
   cp "${TMP}/$(basename "$local_path")" "${ROOT}/${local_path}"
   echo "synced ${local_path}"
 }
