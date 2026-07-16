@@ -30,9 +30,12 @@ Before considering work complete:
 npm run lint
 npm run type-check
 npm test
+npm run check-schemas
 ```
 
 If a change touches signing or canonicalization, add regression tests for the exact payload shape and hash behavior.
+
+If a change touches embedded JSON Schema files under `src/schema/`, run `npm run sync-schemas` (or update files manually from `display-protocol/dp1-go`) and confirm `npm run check-schemas` passes. Schema sync scripts require the GitHub CLI (`gh`) and network access to `display-protocol/dp1-go`.
 
 Use `npm run build` when distribution output or packaging changes.
 
@@ -50,7 +53,7 @@ A task is complete only when:
 
 1. The requested change is implemented.
 2. Relevant tests were added or updated, or an explicit reason is given when none were appropriate.
-3. Verification passes cleanly (lint, typecheck, tests).
+3. Verification passes cleanly (lint, typecheck, tests, and `check-schemas` when schema files change).
 4. Docs and `.cursor` rules are updated if user-facing API or agent workflow expectations changed.
 5. Review has accepted the change (see Review loop).
 6. The branch is merge-ready without hidden follow-up work.

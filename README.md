@@ -128,12 +128,14 @@ For v1.1.0 multi-signature documents, use `SignMultiEd25519` / `VerifyPlaylistSi
 
 Embedded JSON Schema files under `src/schema/` are kept in sync with [`display-protocol/dp1-go`](https://github.com/display-protocol/dp1-go) (`internal/schema/`). Payloads that passed validation under older, looser schemas may now fail — for example invalid `license` values, provenance blocks without `type`, or ref-manifest thumbnails missing required dimensions.
 
-Refresh schemas from dp1-go:
+Refresh schemas from dp1-go (requires [GitHub CLI](https://cli.github.com/) authenticated for API access):
 
 ```bash
 npm run sync-schemas
 npm run check-schemas
 ```
+
+Optional: set `DP1_GO_REPO=your-org/dp1-go-fork` to sync from a fork instead of `display-protocol/dp1-go`.
 
 See [CHANGELOG.md](./CHANGELOG.md) for breaking validation changes.
 
@@ -163,6 +165,7 @@ npm run check-schemas
 
 - Node.js 22+
 - npm for dependency installation
+- [GitHub CLI](https://cli.github.com/) (`gh`) for `npm run sync-schemas` and `npm run check-schemas` (CI uses `GITHUB_TOKEN`; local runs need `gh auth login`)
 
 ## Notes
 
