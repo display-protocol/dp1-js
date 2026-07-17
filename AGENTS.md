@@ -34,8 +34,6 @@ npm test
 
 If a change touches signing or canonicalization, add regression tests for the exact payload shape and hash behavior.
 
-If a change touches embedded JSON Schema files under `src/schema/`, run `npm run sync-schemas` (or update files manually from `display-protocol/dp1-go`). Schema sync scripts require the GitHub CLI (`gh`) and network access to `display-protocol/dp1-go`.
-
 Use `npm run build` when distribution output or packaging changes.
 
 ## Portable operating model

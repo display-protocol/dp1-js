@@ -19,5 +19,4 @@ All notable changes to this project are documented here.
 
 ### Added
 
-- `scripts/sync-schemas-from-dp1-go.sh` to refresh embedded schemas from the Go SDK.
 - Regression tests for stricter validation and merge parity edge cases.
