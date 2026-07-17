@@ -68,13 +68,6 @@ function cloneDisplay(display: DisplayPrefs): DisplayPrefs {
   return out;
 }
 
-function overlayMousePrefs(dst: MousePrefs, src: MousePrefs) {
-  if (src.click !== undefined) dst.click = src.click;
-  if (src.scroll !== undefined) dst.scroll = src.scroll;
-  if (src.drag !== undefined) dst.drag = src.drag;
-  if (src.hover !== undefined) dst.hover = src.hover;
-}
-
 function overlayDisplay(dst: DisplayPrefs, src: DisplayPrefs) {
   if (src.scaling) dst.scaling = src.scaling;
   if (hasMargin(src.margin)) dst.margin = src.margin;
@@ -84,12 +77,18 @@ function overlayDisplay(dst: DisplayPrefs, src: DisplayPrefs) {
   if (src.interaction) {
     if (!dst.interaction) dst.interaction = {};
     if (src.interaction.keyboard !== undefined) {
-      dst.interaction.keyboard = [...src.interaction.keyboard];
+      if (src.interaction.keyboard.length > 0) {
+        dst.interaction.keyboard = [...src.interaction.keyboard];
+      }
     }
     if (src.interaction.mouse) {
       if (!dst.interaction.mouse) dst.interaction.mouse = {};
-      // Overlay uses explicit booleans so later layers can clear inherited true flags.
-      overlayMousePrefs(dst.interaction.mouse, src.interaction.mouse);
+      const m = dst.interaction.mouse;
+      const sm = src.interaction.mouse;
+      if (sm.click) m.click = sm.click;
+      if (sm.scroll) m.scroll = sm.scroll;
+      if (sm.drag) m.drag = sm.drag;
+      if (sm.hover) m.hover = sm.hover;
     }
   }
   if (src.userOverrides && Object.keys(src.userOverrides).length > 0) {
@@ -140,11 +139,12 @@ function applyDisplayJSON(dst: DisplayPrefs, src: DisplayControls) {
     const parsed = parseRefInteraction(src.interaction);
     if (parsed !== 'invalid') {
       if (parsed.keyboard !== undefined) {
-        dst.interaction.keyboard = parsed.keyboard;
+        if (parsed.keyboard.length > 0) {
+          dst.interaction.keyboard = parsed.keyboard;
+        }
       }
       if (parsed.mouse !== undefined) {
-        if (!dst.interaction.mouse) dst.interaction.mouse = {};
-        overlayMousePrefs(dst.interaction.mouse, parsed.mouse);
+        dst.interaction.mouse = parsed.mouse;
       }
     }
   }

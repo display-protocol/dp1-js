@@ -97,7 +97,7 @@ test('DisplayForItem_fullOverlay', () => {
     autoplay: true,
     interaction: {
       keyboard: ['Enter'],
-      mouse: { click: true, scroll: true, drag: true, hover: true },
+      mouse: { scroll: true, drag: true, hover: true },
     },
     userOverrides: { scaling: true, margin: true },
     margin: '5%',
@@ -134,7 +134,7 @@ test('applyDisplayJSON_refInteractionKeepsKeyboardWhenMouseNull', () => {
   assert.deepEqual(display, { interaction: { keyboard: ['Space'] } });
 });
 
-test('applyDisplayJSON_refInteractionOverlaysPartialMousePrefs', () => {
+test('applyDisplayJSON_refInteractionReplacesMousePrefs', () => {
   const [display] = DisplayForItem(
     { display: { interaction: { mouse: { scroll: true, drag: true, hover: true } } } },
     {
@@ -146,9 +146,7 @@ test('applyDisplayJSON_refInteractionOverlaysPartialMousePrefs', () => {
     },
     null
   );
-  assert.deepEqual(display, {
-    interaction: { mouse: { click: false, scroll: true, drag: true, hover: true } },
-  });
+  assert.deepEqual(display, { interaction: { mouse: { click: false } } });
 });
 
 test('applyDisplayJSON_refInteractionClearsKeyboardWithEmptyArray', () => {
@@ -163,10 +161,10 @@ test('applyDisplayJSON_refInteractionClearsKeyboardWithEmptyArray', () => {
     },
     null
   );
-  assert.deepEqual(display, { interaction: { keyboard: [] } });
+  assert.deepEqual(display, { interaction: { keyboard: ['KeyA'] } });
 });
 
-test('DisplayForItem_itemMouseFalseClearsRefFlags', () => {
+test('DisplayForItem_itemMouseFalseDoesNotClearRefFlags', () => {
   const [display] = DisplayForItem(
     null,
     {
@@ -183,15 +181,15 @@ test('DisplayForItem_itemMouseFalseClearsRefFlags', () => {
     }
   );
   assert.deepEqual(display, {
-    interaction: { mouse: { click: false, scroll: true, drag: true } },
+    interaction: { mouse: { scroll: true, drag: true } },
   });
 });
 
-test('DisplayForItem_itemKeyboardEmptyClearsInheritedKeyboard', () => {
+test('DisplayForItem_itemKeyboardEmptyDoesNotClearInheritedKeyboard', () => {
   const [display] = DisplayForItem({ display: { interaction: { keyboard: ['KeyA'] } } }, null, {
     display: { interaction: { keyboard: [] } },
   });
-  assert.deepEqual(display, { interaction: { keyboard: [] } });
+  assert.deepEqual(display, { interaction: { keyboard: ['KeyA'] } });
 });
 
 test('DisplayForItem_itemAutoplayFalseOverlay', () => {
