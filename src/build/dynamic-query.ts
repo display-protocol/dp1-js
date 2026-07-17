@@ -1,4 +1,4 @@
-import { assertUri } from './helpers.js';
+import { assertUri, resolve } from './helpers.js';
 import type { DynamicQuery, DynamicQueryProfile, ResponseMapping } from './types.js';
 import { validateDynamicQueryDraft } from './validate-draft.js';
 
@@ -26,9 +26,9 @@ export class ResponseMappingBuilder {
       itemSchema: String(this.mapping.itemSchema ?? ''),
       ...(this.mapping.itemMap === undefined ? {} : { itemMap: this.mapping.itemMap }),
     };
-    // validateDynamicQueryDraft checks itemSchema pattern, but ResponseMapping can be used alone too.
     if (!out.itemsPath) throw new Error('dp1: responseMapping.itemsPath must be a non-empty string');
-    if (!out.itemSchema) throw new Error('dp1: responseMapping.itemSchema must be a non-empty string');
+    if (!out.itemSchema)
+      throw new Error('dp1: responseMapping.itemSchema must be a non-empty string');
     if (!/^dp1\/\d+\.\d+$/.test(out.itemSchema))
       throw new Error('dp1: responseMapping.itemSchema must look like dp1/1.1');
     return structuredClone(out);
@@ -70,27 +70,26 @@ export class DynamicQueryBuilder {
   }
 
   responseMapping(value: ResponseMapping | ResponseMappingBuilder) {
-    this.query.responseMapping = typeof value === 'object' && 'build' in value ? value.build() : value;
+    this.query.responseMapping = resolve(value);
     return this;
   }
 
   build(): DynamicQuery {
+    const responseMapping = this.query.responseMapping
+      ? resolve(this.query.responseMapping as ResponseMapping | ResponseMappingBuilder)
+      : ({ itemsPath: '', itemSchema: '' } as ResponseMapping);
+
     const out: DynamicQuery = {
       profile: String(this.query.profile ?? '') as DynamicQueryProfile,
       endpoint: String(this.query.endpoint ?? ''),
       ...(this.query.method === undefined ? {} : { method: this.query.method }),
       ...(this.query.headers === undefined ? {} : { headers: this.query.headers }),
       ...(this.query.query === undefined ? {} : { query: String(this.query.query) }),
-      responseMapping:
-        typeof this.query.responseMapping === 'object' && this.query.responseMapping !== null
-          ? (this.query.responseMapping as ResponseMapping)
-          : ({ itemsPath: '', itemSchema: '' } as ResponseMapping),
+      responseMapping,
     };
 
-    // Quick field-level sanity before the richer draft validator.
     assertUri(out.endpoint, 'dynamicQuery.endpoint');
     validateDynamicQueryDraft(out);
     return structuredClone(out);
   }
 }
-

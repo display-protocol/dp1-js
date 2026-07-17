@@ -1,4 +1,4 @@
-import { assertUri } from './helpers.js';
+import { assertHex64, assertUri, resolve } from './helpers.js';
 import type {
   Chain,
   Contract,
@@ -20,8 +20,38 @@ function assertStandard(value: unknown, fieldName: string): asserts value is Tok
     throw new Error(`dp1: ${fieldName} must be one of erc721|erc1155|fa2|other`);
 }
 
-function assertHex64(value: string, fieldName: string): void {
-  if (!/^[a-f0-9]{64}$/i.test(value)) throw new Error(`dp1: ${fieldName} must be 64 hex chars`);
+function validateContract(contract: Contract): Contract {
+  const out: Contract = {
+    ...(contract.chain === undefined ? {} : { chain: contract.chain }),
+    ...(contract.standard === undefined ? {} : { standard: contract.standard }),
+    ...(contract.address === undefined ? {} : { address: contract.address }),
+    ...(contract.seriesId === undefined ? {} : { seriesId: contract.seriesId }),
+    ...(contract.tokenId === undefined ? {} : { tokenId: contract.tokenId }),
+    ...(contract.uri === undefined ? {} : { uri: contract.uri }),
+    ...(contract.metaHash === undefined ? {} : { metaHash: contract.metaHash }),
+  };
+
+  if (out.chain !== undefined) assertChain(out.chain, 'contract.chain');
+  if (out.standard !== undefined) assertStandard(out.standard, 'contract.standard');
+  if (out.seriesId !== undefined) {
+    if (!Number.isInteger(out.seriesId) || out.seriesId < 0)
+      throw new Error('dp1: contract.seriesId must be an integer >= 0');
+  }
+  if (out.uri !== undefined) assertUri(out.uri, 'contract.uri');
+  if (out.metaHash !== undefined) out.metaHash = assertHex64(out.metaHash, 'contract.metaHash');
+  return structuredClone(out);
+}
+
+function validateDependency(dep: Dependency): Dependency {
+  const out: Dependency = {
+    ...(dep.chain === undefined ? {} : { chain: dep.chain }),
+    ...(dep.standard === undefined ? {} : { standard: dep.standard }),
+    ...(dep.uri === undefined ? {} : { uri: dep.uri }),
+  };
+  if (out.chain !== undefined) assertChain(out.chain, 'dependency.chain');
+  if (out.standard !== undefined) assertStandard(out.standard, 'dependency.standard');
+  if (out.uri !== undefined) assertUri(out.uri, 'dependency.uri');
+  return structuredClone(out);
 }
 
 export class ContractBuilder {
@@ -63,25 +93,7 @@ export class ContractBuilder {
   }
 
   build(): Contract {
-    const out: Contract = {
-      ...(this.contract.chain === undefined ? {} : { chain: this.contract.chain }),
-      ...(this.contract.standard === undefined ? {} : { standard: this.contract.standard }),
-      ...(this.contract.address === undefined ? {} : { address: this.contract.address }),
-      ...(this.contract.seriesId === undefined ? {} : { seriesId: this.contract.seriesId }),
-      ...(this.contract.tokenId === undefined ? {} : { tokenId: this.contract.tokenId }),
-      ...(this.contract.uri === undefined ? {} : { uri: this.contract.uri }),
-      ...(this.contract.metaHash === undefined ? {} : { metaHash: this.contract.metaHash }),
-    };
-
-    if (out.chain !== undefined) assertChain(out.chain, 'contract.chain');
-    if (out.standard !== undefined) assertStandard(out.standard, 'contract.standard');
-    if (out.seriesId !== undefined) {
-      if (!Number.isInteger(out.seriesId) || out.seriesId < 0)
-        throw new Error('dp1: contract.seriesId must be an integer >= 0');
-    }
-    if (out.uri !== undefined) assertUri(out.uri, 'contract.uri');
-    if (out.metaHash !== undefined) assertHex64(out.metaHash, 'contract.metaHash');
-    return structuredClone(out);
+    return validateContract(this.contract);
   }
 }
 
@@ -100,15 +112,7 @@ export class DependencyBuilder {
     return this;
   }
   build(): Dependency {
-    const out: Dependency = {
-      ...(this.dep.chain === undefined ? {} : { chain: this.dep.chain }),
-      ...(this.dep.standard === undefined ? {} : { standard: this.dep.standard }),
-      ...(this.dep.uri === undefined ? {} : { uri: this.dep.uri }),
-    };
-    if (out.chain !== undefined) assertChain(out.chain, 'dependency.chain');
-    if (out.standard !== undefined) assertStandard(out.standard, 'dependency.standard');
-    if (out.uri !== undefined) assertUri(out.uri, 'dependency.uri');
-    return structuredClone(out);
+    return validateDependency(this.dep);
   }
 }
 
@@ -121,18 +125,18 @@ export class ProvenanceBuilder {
   }
 
   contract(value: Contract | ContractBuilder) {
-    this.prov.contract = typeof value === 'object' && 'build' in value ? value.build() : value;
+    this.prov.contract = resolve(value);
     return this;
   }
 
   addDependency(value: Dependency | DependencyBuilder) {
     if (!this.prov.dependencies) this.prov.dependencies = [];
-    this.prov.dependencies.push(typeof value === 'object' && 'build' in value ? value.build() : value);
+    this.prov.dependencies.push(resolve(value));
     return this;
   }
 
   dependencies(values: Array<Dependency | DependencyBuilder>) {
-    this.prov.dependencies = values.map(v => (typeof v === 'object' && 'build' in v ? v.build() : v));
+    this.prov.dependencies = values.map(v => resolve(v));
     return this;
   }
 
@@ -143,24 +147,14 @@ export class ProvenanceBuilder {
     }
     const out: ProvenanceBlock = {
       type,
-      ...(this.prov.contract === undefined ? {} : { contract: this.prov.contract as Contract }),
-      ...(this.prov.dependencies === undefined ? {} : { dependencies: this.prov.dependencies }),
+      ...(this.prov.contract === undefined ? {} : { contract: validateContract(this.prov.contract) }),
+      ...(this.prov.dependencies === undefined
+        ? {}
+        : { dependencies: this.prov.dependencies.map(validateDependency) }),
     };
     if ((out.type === 'onChain' || out.type === 'seriesRegistry') && !out.contract) {
       throw new Error('dp1: provenance.contract is required for onChain and seriesRegistry');
     }
-    if (out.contract) {
-      if (out.contract.chain !== undefined) assertChain(out.contract.chain, 'contract.chain');
-      if (out.contract.standard !== undefined)
-        assertStandard(out.contract.standard, 'contract.standard');
-      if (out.contract.seriesId !== undefined) {
-        if (!Number.isInteger(out.contract.seriesId) || out.contract.seriesId < 0)
-          throw new Error('dp1: contract.seriesId must be an integer >= 0');
-      }
-      if (out.contract.uri !== undefined) assertUri(out.contract.uri, 'contract.uri');
-      if (out.contract.metaHash !== undefined) assertHex64(out.contract.metaHash, 'contract.metaHash');
-    }
     return structuredClone(out);
   }
 }
-

@@ -1,7 +1,14 @@
+import { assert0xHex, assertHex64, resolve } from './helpers.js';
 import type { ReproBlock, ReproEngineVersion, ReproFrameHash } from './types.js';
 
-function assertHex64(value: string, fieldName: string): void {
-  if (!/^[a-f0-9]{64}$/i.test(value)) throw new Error(`dp1: ${fieldName} must be 64 hex chars`);
+function validateFrameHash(h: ReproFrameHash): ReproFrameHash {
+  const out: ReproFrameHash = {
+    ...(h.sha256 === undefined ? {} : { sha256: String(h.sha256) }),
+    ...(h.phash === undefined ? {} : { phash: String(h.phash) }),
+  };
+  if (out.sha256 !== undefined) out.sha256 = assertHex64(out.sha256, 'repro.frameHash.sha256');
+  if (out.phash !== undefined) out.phash = assert0xHex(out.phash, 'repro.frameHash.phash');
+  return structuredClone(out);
 }
 
 export class EngineVersionBuilder {
@@ -38,14 +45,7 @@ export class FrameHashBuilder {
     return this;
   }
   build(): ReproFrameHash {
-    const out: ReproFrameHash = {
-      ...(this.h.sha256 === undefined ? {} : { sha256: String(this.h.sha256) }),
-      ...(this.h.phash === undefined ? {} : { phash: String(this.h.phash) }),
-    };
-    if (out.sha256 !== undefined) assertHex64(out.sha256, 'repro.frameHash.sha256');
-    if (out.phash !== undefined && !/^0x[a-f0-9]+$/i.test(out.phash))
-      throw new Error('dp1: repro.frameHash.phash must be 0x-prefixed hex');
-    return structuredClone(out);
+    return validateFrameHash(this.h);
   }
 }
 
@@ -53,7 +53,7 @@ export class ReproBuilder {
   private repro: ReproBlock = {};
 
   engineVersion(value: ReproEngineVersion | EngineVersionBuilder) {
-    this.repro.engineVersion = typeof value === 'object' && 'build' in value ? value.build() : value;
+    this.repro.engineVersion = resolve(value);
     return this;
   }
 
@@ -68,7 +68,7 @@ export class ReproBuilder {
   }
 
   frameHash(value: ReproFrameHash | FrameHashBuilder) {
-    this.repro.frameHash = typeof value === 'object' && 'build' in value ? value.build() : value;
+    this.repro.frameHash = resolve(value);
     return this;
   }
 
@@ -79,12 +79,14 @@ export class ReproBuilder {
       ...(this.repro.assetsSHA256 === undefined
         ? {}
         : { assetsSHA256: this.repro.assetsSHA256.map(String) }),
-      ...(this.repro.frameHash === undefined ? {} : { frameHash: this.repro.frameHash }),
+      ...(this.repro.frameHash === undefined
+        ? {}
+        : { frameHash: validateFrameHash(this.repro.frameHash) }),
     };
-    if (out.seed !== undefined && !/^0x[a-f0-9]+$/i.test(out.seed))
-      throw new Error('dp1: repro.seed must be 0x-prefixed hex');
-    if (out.assetsSHA256) out.assetsSHA256.forEach(v => assertHex64(v, 'repro.assetsSHA256[]'));
+    if (out.seed !== undefined) out.seed = assert0xHex(out.seed, 'repro.seed');
+    if (out.assetsSHA256) {
+      out.assetsSHA256 = out.assetsSHA256.map(v => assertHex64(v, 'repro.assetsSHA256[]'));
+    }
     return structuredClone(out);
   }
 }
-

@@ -124,7 +124,6 @@ export interface Playlist {
   signature?: string;
   // playlists extension overlay
   note?: Note;
-  itemsExtension?: unknown;
   curators?: Entity[];
   summary?: string;
   coverImage?: string;
@@ -239,7 +238,6 @@ export interface Channel {
   publisher?: Entity;
   summary?: string;
   coverImage?: string;
-  whatsNew?: string;
   signatures?: Signature[];
   signature?: string;
 }
