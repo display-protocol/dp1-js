@@ -45,6 +45,14 @@ test('DisplayForItem_overrideThenItem_itemWins', () => {
   assert.deepEqual(display, { scaling: 'fill' });
 });
 
+test('DisplayForItem_emptyDisplayOverride_itemWins', () => {
+  const [display] = DisplayForItem(null, null, {
+    override: { display: {} },
+    display: { scaling: 'fill' },
+  });
+  assert.deepEqual(display, { scaling: 'fill' });
+});
+
 test('DisplayForItem_refThenOverrideThenItem', () => {
   const [display] = DisplayForItem(
     null,
@@ -87,8 +95,11 @@ test('DisplayForItem_fullOverlay', () => {
   assert.deepEqual(display, {
     scaling: 'auto',
     autoplay: true,
-    interaction: { keyboard: ['Enter'], mouse: { hover: true } },
-    userOverrides: { margin: true },
+    interaction: {
+      keyboard: ['Enter'],
+      mouse: { scroll: true, drag: true, hover: true },
+    },
+    userOverrides: { scaling: true, margin: true },
     margin: '5%',
     background: '#111111',
     loop: true,
@@ -105,7 +116,87 @@ test('applyDisplayJSON_invalidInteractionIgnored', () => {
     },
     null
   );
-  assert.deepEqual(display, { scaling: 'stretch', interaction: { keyboard: 42 } });
+  assert.deepEqual(display, { scaling: 'stretch', interaction: {} });
+});
+
+test('applyDisplayJSON_refInteractionKeepsKeyboardWhenMouseNull', () => {
+  const [display] = DisplayForItem(
+    null,
+    {
+      controls: {
+        display: {
+          interaction: { keyboard: ['Space'], mouse: null } as unknown as object,
+        },
+      },
+    },
+    null
+  );
+  assert.deepEqual(display, { interaction: { keyboard: ['Space'] } });
+});
+
+test('applyDisplayJSON_refInteractionReplacesMousePrefs', () => {
+  const [display] = DisplayForItem(
+    { display: { interaction: { mouse: { scroll: true, drag: true, hover: true } } } },
+    {
+      controls: {
+        display: {
+          interaction: { mouse: { click: false } },
+        },
+      },
+    },
+    null
+  );
+  assert.deepEqual(display, { interaction: { mouse: { click: false } } });
+});
+
+test('applyDisplayJSON_refInteractionClearsKeyboardWithEmptyArray', () => {
+  const [display] = DisplayForItem(
+    { display: { interaction: { keyboard: ['KeyA'] } } },
+    {
+      controls: {
+        display: {
+          interaction: { keyboard: [] },
+        },
+      },
+    },
+    null
+  );
+  assert.deepEqual(display, { interaction: { keyboard: ['KeyA'] } });
+});
+
+test('DisplayForItem_itemMouseFalseDoesNotClearRefFlags', () => {
+  const [display] = DisplayForItem(
+    null,
+    {
+      controls: {
+        display: {
+          interaction: { mouse: { scroll: true, drag: true } },
+        },
+      },
+    },
+    {
+      display: {
+        interaction: { mouse: { click: false } },
+      },
+    }
+  );
+  assert.deepEqual(display, {
+    interaction: { mouse: { scroll: true, drag: true } },
+  });
+});
+
+test('DisplayForItem_itemKeyboardEmptyDoesNotClearInheritedKeyboard', () => {
+  const [display] = DisplayForItem({ display: { interaction: { keyboard: ['KeyA'] } } }, null, {
+    display: { interaction: { keyboard: [] } },
+  });
+  assert.deepEqual(display, { interaction: { keyboard: ['KeyA'] } });
+});
+
+test('DisplayForItem_itemAutoplayFalseOverlay', () => {
+  const [display] = DisplayForItem({ display: { scaling: 'fit', autoplay: true } }, null, {
+    display: { autoplay: false },
+  });
+  assert.deepEqual(display, { scaling: 'fit', autoplay: false });
 });
 
 test('DisplayForItem_returnsIsolatedCopy', () => {
@@ -120,4 +211,12 @@ test('DisplayForItem_returnsIsolatedCopy', () => {
   assert.deepEqual(def.display.interaction.keyboard, ['KeyA']);
   assert.deepEqual(ref.controls.display.interaction.keyboard, ['Space']);
   assert.deepEqual(item.display.interaction.keyboard, ['Enter']);
+});
+
+test('DisplayForItem_defaultsOnlyIsolatesKeyboard', () => {
+  const def = { display: { interaction: { keyboard: ['KeyA'] } } };
+  const [display] = DisplayForItem(def, null, null);
+  assert.ok(display);
+  display.interaction?.keyboard?.push('KeyB');
+  assert.deepEqual(def.display.interaction.keyboard, ['KeyA']);
 });

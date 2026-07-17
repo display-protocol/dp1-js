@@ -1,55 +1,156 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://dp1.feralfile.com/extensions/playlists/v0.1.0/schema.json",
+  "title": "DP-1 Playlist Extension",
+  "description": "Extensions to DP-1 playlists for dynamic item fetching, enhanced metadata, and optional intermission notes",
   "type": "object",
   "properties": {
-    "note": { "$ref": "#/$defs/Note" },
+    "note": {
+      "$ref": "#/$defs/Note"
+    },
     "items": {
       "type": "array",
-      "items": { "type": "object", "properties": { "note": { "$ref": "#/$defs/Note" } } }
+      "description": "Per-item extension fields. Composed with the core playlist schema via allOf: each element must still satisfy PlaylistItem from the bundle, and may include optional note.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "$ref": "#/$defs/Note"
+          }
+        }
+      }
     },
-    "curators": { "type": "array", "items": { "$ref": "#/$defs/Entity" } },
-    "summary": { "type": "string", "minLength": 1, "maxLength": 2000 },
-    "coverImage": { "type": "string", "format": "uri" },
-    "dynamicQuery": { "$ref": "#/$defs/DynamicQuery" }
+    "curators": {
+      "type": "array",
+      "description": "Array of curator entities using the shared DP-1 extension entity shape",
+      "items": {
+        "$ref": "#/$defs/Entity"
+      }
+    },
+    "summary": {
+      "type": "string",
+      "description": "Playlist description",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "coverImage": {
+      "type": "string",
+      "description": "Playlist cover image (ipfs://, https://, ar://)",
+      "format": "uri"
+    },
+    "dynamicQuery": {
+      "description": "Dynamic item fetching configuration",
+      "$ref": "#/$defs/DynamicQuery"
+    }
   },
   "$defs": {
     "Note": {
       "type": "object",
+      "description": "Experimental intermission card: short artist-authored text between works. May be removed or changed in a future Playlist Extension version.",
       "required": ["text"],
       "properties": {
-        "text": { "type": "string", "minLength": 1, "maxLength": 500 },
-        "duration": { "type": "number", "exclusiveMinimum": 0 }
+        "text": {
+          "type": "string",
+          "description": "Short label or interlude text (not a social thread)",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "duration": {
+          "type": "number",
+          "description": "How long to show the intermission page before continuing, in seconds. Omitted means 20.",
+          "default": 20,
+          "exclusiveMinimum": 0
+        }
       }
     },
     "Entity": {
       "type": "object",
+      "description": "Unified entity format for curators and publishers with verifiable identities",
       "required": ["name", "key"],
       "properties": {
-        "name": { "type": "string" },
-        "key": { "type": "string", "pattern": "^did:[a-z]+:.+$" },
-        "url": { "type": "string", "format": "uri" }
+        "name": {
+          "type": "string",
+          "description": "Entity display name"
+        },
+        "key": {
+          "type": "string",
+          "description": "Verifiable identity in DID format",
+          "pattern": "^did:[a-z]+:.+$"
+        },
+        "url": {
+          "type": "string",
+          "description": "Entity website or profile URL",
+          "format": "uri"
+        }
       }
     },
     "DynamicQuery": {
       "type": "object",
+      "description": "Machine-executable interface for fetching playlist items dynamically from external indexers",
       "required": ["profile", "endpoint", "responseMapping"],
       "properties": {
-        "profile": { "type": "string", "enum": ["https-json-v1", "graphql-v1"] },
-        "endpoint": { "type": "string", "format": "uri" },
-        "method": { "type": "string", "enum": ["GET", "POST"] },
-        "headers": { "type": "object", "additionalProperties": { "type": "string" } },
-        "query": { "type": "string" },
-        "responseMapping": { "$ref": "#/$defs/ResponseMapping" }
+        "profile": {
+          "type": "string",
+          "description": "Resolution profile with version",
+          "enum": ["https-json-v1", "graphql-v1"]
+        },
+        "endpoint": {
+          "type": "string",
+          "description": "Indexer service endpoint URL",
+          "format": "uri"
+        },
+        "method": {
+          "type": "string",
+          "description": "HTTP method (default: POST for graphql-v1, GET for https-json-v1)",
+          "enum": ["GET", "POST"]
+        },
+        "headers": {
+          "type": "object",
+          "description": "HTTP headers to include in the request",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "query": {
+          "type": "string",
+          "description": "Query payload with optional {{...}} template placeholders"
+        },
+        "responseMapping": {
+          "description": "Instructions for parsing the indexer response",
+          "$ref": "#/$defs/ResponseMapping"
+        }
       }
     },
     "ResponseMapping": {
       "type": "object",
+      "description": "Configuration for extracting playlist items from indexer response",
       "required": ["itemsPath", "itemSchema"],
       "properties": {
-        "itemsPath": { "type": "string" },
-        "itemSchema": { "type": "string", "pattern": "^dp1/\\d+\\.\\d+$" },
-        "itemMap": { "type": "object", "additionalProperties": { "type": "string" } }
+        "itemsPath": {
+          "type": "string",
+          "description": "JSON path to the array of items (dot notation)",
+          "examples": ["data.works", "artworks", "data.userWorks"]
+        },
+        "itemSchema": {
+          "type": "string",
+          "description": "Schema identifier referencing DP-1 version",
+          "pattern": "^dp1/\\d+\\.\\d+$",
+          "examples": ["dp1/1.0", "dp1/1.1"]
+        },
+        "itemMap": {
+          "type": "object",
+          "description": "Optional field mapping from response to DP-1 item schema",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "examples": [
+            {
+              "id": "artwork_id",
+              "title": "name",
+              "source": "media_url"
+            }
+          ]
+        }
       }
     }
   }
