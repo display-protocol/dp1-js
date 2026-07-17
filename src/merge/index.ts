@@ -58,6 +58,9 @@ function cloneDisplay(display: DisplayPrefs): DisplayPrefs {
   const out: DisplayPrefs = { ...display };
   if (display.interaction) {
     out.interaction = { ...display.interaction };
+    if (display.interaction.keyboard) {
+      out.interaction.keyboard = [...display.interaction.keyboard];
+    }
     if (display.interaction.mouse) {
       out.interaction.mouse = { ...display.interaction.mouse };
     }

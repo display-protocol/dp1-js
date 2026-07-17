@@ -212,3 +212,11 @@ test('DisplayForItem_returnsIsolatedCopy', () => {
   assert.deepEqual(ref.controls.display.interaction.keyboard, ['Space']);
   assert.deepEqual(item.display.interaction.keyboard, ['Enter']);
 });
+
+test('DisplayForItem_defaultsOnlyIsolatesKeyboard', () => {
+  const def = { display: { interaction: { keyboard: ['KeyA'] } } };
+  const [display] = DisplayForItem(def, null, null);
+  assert.ok(display);
+  display.interaction?.keyboard?.push('KeyB');
+  assert.deepEqual(def.display.interaction.keyboard, ['KeyA']);
+});
