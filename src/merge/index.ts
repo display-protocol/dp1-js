@@ -194,9 +194,7 @@ export function DisplayForItem(def: DefaultsLike, ref: RefLike, item: ItemLike) 
   }
   const overrideObj = isRecord(override) ? override : null;
   const overrideDisplay =
-    overrideObj && isRecord(overrideObj.display)
-      ? (overrideObj.display as DisplayPrefs)
-      : null;
+    overrideObj && isRecord(overrideObj.display) ? (overrideObj.display as DisplayPrefs) : null;
   if (overrideDisplay) overlayDisplay(base, overrideDisplay);
 
   if (item?.display) overlayDisplay(base, cloneDisplay(item.display));

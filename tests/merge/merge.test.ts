@@ -188,20 +188,16 @@ test('DisplayForItem_itemMouseFalseClearsRefFlags', () => {
 });
 
 test('DisplayForItem_itemKeyboardEmptyClearsInheritedKeyboard', () => {
-  const [display] = DisplayForItem(
-    { display: { interaction: { keyboard: ['KeyA'] } } },
-    null,
-    { display: { interaction: { keyboard: [] } } }
-  );
+  const [display] = DisplayForItem({ display: { interaction: { keyboard: ['KeyA'] } } }, null, {
+    display: { interaction: { keyboard: [] } },
+  });
   assert.deepEqual(display, { interaction: { keyboard: [] } });
 });
 
 test('DisplayForItem_itemAutoplayFalseOverlay', () => {
-  const [display] = DisplayForItem(
-    { display: { scaling: 'fit', autoplay: true } },
-    null,
-    { display: { autoplay: false } }
-  );
+  const [display] = DisplayForItem({ display: { scaling: 'fit', autoplay: true } }, null, {
+    display: { autoplay: false },
+  });
   assert.deepEqual(display, { scaling: 'fit', autoplay: false });
 });
 
