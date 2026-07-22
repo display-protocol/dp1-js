@@ -3,6 +3,8 @@ import { isIP } from 'node:net';
 import { Buffer } from 'node:buffer';
 import { parsePlaylistItem } from '../validate/index.js';
 
+export { parseDisplayAt, computeActiveSet, nextDisplayAt } from './schedule.js';
+
 export const RoleCurator = 'curator';
 export const RoleFeed = 'feed';
 export const RoleAgent = 'agent';

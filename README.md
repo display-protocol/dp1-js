@@ -17,6 +17,7 @@ It is designed for Node.js 22+ and ships dual ESM/CJS entrypoints through the pa
 - Canonicalize signing payloads using RFC 8785-style JSON canonicalization.
 - Compute and verify payload hashes and Ed25519 signatures.
 - Merge display preferences with DP-1 resolution order.
+- Resolve playlist `displayAt` schedules into an active playback set and next timer.
 
 ## Install
 
@@ -115,6 +116,43 @@ console.log('Signature verified');
 
 For v1.1.0 multi-signature documents, use `SignMultiEd25519` / `VerifyPlaylistSignatures` from the signing API after schema-validating the unsigned payload.
 
+### Schedule playback with `displayAt`
+
+When a playlist sets `schedule.byDisplayAt: true`, only the current release window should play. Use these helpers to filter items and arm a timer for the next release:
+
+```ts
+import { computeActiveSet, nextDisplayAt, parseDisplayAt } from 'dp1-js';
+
+const playlist = {
+  dpVersion: '1.1.0',
+  title: 'Daily',
+  schedule: { byDisplayAt: true },
+  items: [
+    { source: 'https://example.com/intro.html' },
+    { source: 'https://example.com/day1.html', displayAt: '2026-07-21T00:00:00' },
+    { source: 'https://example.com/day2.html', displayAt: '2026-07-22T00:00:00' },
+    { source: 'https://example.com/day3.html', displayAt: '2026-07-23T00:00:00' },
+  ],
+};
+
+const now = new Date('2026-07-22T10:00:00Z');
+const active = computeActiveSet(playlist, now, 'Asia/Bangkok');
+const next = nextDisplayAt(playlist, now, 'Asia/Bangkok');
+const release = parseDisplayAt('2026-07-22T00:00:00', 'Asia/Bangkok');
+
+console.log(active.map(item => item.source));
+console.log(next?.toISOString());
+console.log(release.toISOString());
+```
+
+Timezone rules:
+
+- With `Z` or an offset (`+07:00`, `+0700`) → absolute instant
+- Without timezone → device local wall time, or an explicit IANA zone via `localTimezone`
+- Date-only (`2026-07-21`) → local midnight (`T00:00:00`)
+
+Malformed `displayAt` strings throw. Schema validation only checks that the field is a string, so callers should treat parse failures as explicit errors.
+
 ## API Notes
 
 - `parseDP1Playlist(json)` returns a `{ playlist, error }` result for already-parsed JSON input.
@@ -123,10 +161,15 @@ For v1.1.0 multi-signature documents, use `SignMultiEd25519` / `VerifyPlaylistSi
 - `verifyPlaylistSignature(raw, signature, publicKey)` throws if verification fails.
 - `ParseDPVersion(version)` is available for version parsing and major-version checks.
 - `DisplayForItem(def, ref, item)` merges display preferences using the same field-level overlay order as `dp1-go`.
+- `parseDisplayAt(displayAt, localTimezone?)` parses item release times with the timezone rules above.
+- `computeActiveSet(playlist, now, localTimezone?)` returns the active playback set when `schedule.byDisplayAt` is true; otherwise it returns all items.
+- `nextDisplayAt(playlist, now, localTimezone?)` returns the soonest future `displayAt`, independent of `schedule.byDisplayAt`.
 
 ## Validation parity with dp1-go
 
 Embedded JSON Schema files under `src/schema/` are kept in sync with [`display-protocol/dp1-go`](https://github.com/display-protocol/dp1-go) (`internal/schema/`). Payloads that passed validation under older, looser schemas may now fail — for example invalid `license` values, provenance blocks without `type`, or ref-manifest thumbnails missing required dimensions.
+
+Playlist Extension fields `schedule.byDisplayAt` and item `displayAt` are included here ahead of the upstream DP-1 schema landing; they are optional and ignored by older runtimes.
 
 See [CHANGELOG.md](./CHANGELOG.md) for breaking validation changes.
 

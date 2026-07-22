@@ -23,6 +23,8 @@ export {
   clonePlaylistWithDynamicQuery,
   ResolveDynamicQuery,
 } from './playlist/index.js';
+export { parseDisplayAt, computeActiveSet, nextDisplayAt } from './playlist/schedule.js';
+export type { Playlist, PlaylistItem, PlaylistSchedule } from './types.js';
 export { parsePlaylistGroup, PlaylistGroupDocument } from './playlistgroup/index.js';
 export { parseRefManifest, RefManifestDocument } from './refmanifest/index.js';
 export * from './merge/index.js';

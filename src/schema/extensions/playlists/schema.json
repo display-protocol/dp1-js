@@ -10,12 +10,16 @@
     },
     "items": {
       "type": "array",
-      "description": "Per-item extension fields. Composed with the core playlist schema via allOf: each element must still satisfy PlaylistItem from the bundle, and may include optional note.",
+      "description": "Per-item extension fields. Composed with the core playlist schema via allOf: each element must still satisfy PlaylistItem from the bundle, and may include optional note and displayAt.",
       "items": {
         "type": "object",
         "properties": {
           "note": {
             "$ref": "#/$defs/Note"
+          },
+          "displayAt": {
+            "type": "string",
+            "description": "Optional scheduled release time for this item (ISO 8601 datetime, with or without timezone)"
           }
         }
       }
@@ -41,6 +45,16 @@
     "dynamicQuery": {
       "description": "Dynamic item fetching configuration",
       "$ref": "#/$defs/DynamicQuery"
+    },
+    "schedule": {
+      "type": "object",
+      "description": "Optional playback scheduling controls for displayAt filtering",
+      "properties": {
+        "byDisplayAt": {
+          "type": "boolean",
+          "description": "When true, only the active displayAt set is eligible for playback"
+        }
+      }
     }
   },
   "$defs": {

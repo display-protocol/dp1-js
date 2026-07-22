@@ -20,3 +20,6 @@ All notable changes to this project are documented here.
 ### Added
 
 - Regression tests for stricter validation and merge parity edge cases.
+- Playlist Extension scheduling helpers: `parseDisplayAt`, `computeActiveSet`, and `nextDisplayAt`.
+- Playlist types for `schedule.byDisplayAt` and item-level `displayAt`.
+- Schema overlay support for `schedule` and `displayAt` on playlists-extension documents.
