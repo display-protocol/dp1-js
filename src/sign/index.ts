@@ -171,9 +171,19 @@ class Eip191Verifier {
     const msg = keccak_256(
       Buffer.concat([Buffer.from('\x19Ethereum Signed Message:\n32'), Buffer.from(digest)])
     );
-    const sig = Uint8Array.from(sigBytes);
-    const pub = secp256k1.recoverPublicKey(sig, msg, { prehash: false });
-    const recoveredPub = secp256k1.Point.fromBytes(pub).toBytes(false);
+    // EIP-191 wire format is [r(32), s(32), v(1)]. The recovery id v is emitted
+    // as {27,28} by Ethereum wallets (personal_sign via MetaMask/viem/ethers),
+    // by go-ethereum, and by this library's signer; some libraries use {0,1}.
+    // @noble/curves needs {0,1}, so normalize before reconstructing the
+    // signature — otherwise recovery throws "invalid recovery id" and every
+    // real wallet signature is rejected. Accept both conventions.
+    const recoveryByte = sigBytes[64];
+    const recoveryId = recoveryByte >= 27 ? recoveryByte - 27 : recoveryByte;
+    if (recoveryId !== 0 && recoveryId !== 1) throw ErrSigInvalid;
+    const sig = secp256k1.Signature.fromBytes(sigBytes.subarray(0, 64), 'compact').addRecoveryBit(
+      recoveryId
+    );
+    const recoveredPub = sig.recoverPublicKey(msg).toBytes(false);
     const recovered = `0x${bytesToHex(keccak_256(recoveredPub.subarray(1)).subarray(-20))}`;
     if (recovered.toLowerCase() !== addr.toLowerCase()) throw ErrSigInvalid;
   }
@@ -205,16 +215,24 @@ export function NewEthereumSigner(privateKey: Uint8Array | Buffer | string, chai
       const msg = keccak_256(
         Buffer.concat([Buffer.from('\x19Ethereum Signed Message:\n32'), Buffer.from(digest)])
       );
-      const sig = secp256k1.sign(msg, privateKey as Parameters<typeof secp256k1.sign>[1], {
+      // @noble/curves 'recovered' format is [recovery(1), r(32), s(32)]. The
+      // EIP-191 wire format every wallet, viem/ethers, and go-ethereum use is
+      // [r(32), s(32), v(1)] with v = recovery + 27. Emit that so dp1-js
+      // signatures interoperate with the rest of the ecosystem instead of a
+      // library-private byte order.
+      const recovered = secp256k1.sign(msg, privateKey as Parameters<typeof secp256k1.sign>[1], {
         format: 'recovered',
         prehash: false,
       });
+      const ethSig = new Uint8Array(65);
+      ethSig.set(recovered.subarray(1), 0); // r || s
+      ethSig[64] = recovered[0] + 27; // v
       const pub = secp256k1.getPublicKey(
         privateKey as Parameters<typeof secp256k1.getPublicKey>[0],
         false
       );
       const addr = `0x${bytesToHex(keccak_256(pub.subarray(1)).subarray(-20))}`;
-      return [EthereumAddressToDIDPKH(addr, chainID), Buffer.from(sig)];
+      return [EthereumAddressToDIDPKH(addr, chainID), Buffer.from(ethSig)];
     },
   };
 }
