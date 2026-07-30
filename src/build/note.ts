@@ -1,5 +1,5 @@
 import type { Note } from './types.js';
-import { validateNoteDraft } from './validate-draft.js';
+import { Note as ValidateNote } from '../validate/index.js';
 
 export class NoteBuilder {
   private note: Partial<Note> = {};
@@ -19,7 +19,7 @@ export class NoteBuilder {
       text: String(this.note.text ?? ''),
       ...(this.note.duration === undefined ? {} : { duration: this.note.duration }),
     };
-    validateNoteDraft(out);
+    ValidateNote(out);
     return structuredClone(out);
   }
 }

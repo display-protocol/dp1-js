@@ -1,6 +1,9 @@
-import { assertUri, resolve } from './helpers.js';
+import { resolve } from './helpers.js';
 import type { DynamicQuery, DynamicQueryProfile, ResponseMapping } from './types.js';
-import { validateDynamicQueryDraft } from './validate-draft.js';
+import {
+  DynamicQuery as ValidateDynamicQuery,
+  ResponseMapping as ValidateResponseMapping,
+} from '../validate/index.js';
 
 export class ResponseMappingBuilder {
   private mapping: Partial<ResponseMapping> = {};
@@ -26,12 +29,7 @@ export class ResponseMappingBuilder {
       itemSchema: String(this.mapping.itemSchema ?? ''),
       ...(this.mapping.itemMap === undefined ? {} : { itemMap: this.mapping.itemMap }),
     };
-    if (!out.itemsPath)
-      throw new Error('dp1: responseMapping.itemsPath must be a non-empty string');
-    if (!out.itemSchema)
-      throw new Error('dp1: responseMapping.itemSchema must be a non-empty string');
-    if (!/^dp1\/\d+\.\d+$/.test(out.itemSchema))
-      throw new Error('dp1: responseMapping.itemSchema must look like dp1/1.1');
+    ValidateResponseMapping(out);
     return structuredClone(out);
   }
 }
@@ -89,8 +87,7 @@ export class DynamicQueryBuilder {
       responseMapping,
     };
 
-    assertUri(out.endpoint, 'dynamicQuery.endpoint');
-    validateDynamicQueryDraft(out);
+    ValidateDynamicQuery(out);
     return structuredClone(out);
   }
 }

@@ -1,5 +1,5 @@
 import type { Entity } from './types.js';
-import { validateEntityDraft } from './validate-draft.js';
+import { Entity as ValidateEntity } from '../validate/index.js';
 
 export class EntityBuilder {
   private entity: Partial<Entity> = {};
@@ -25,7 +25,7 @@ export class EntityBuilder {
       key: String(this.entity.key ?? ''),
       ...(this.entity.url === undefined ? {} : { url: String(this.entity.url) }),
     };
-    validateEntityDraft(out);
+    ValidateEntity(out);
     return structuredClone(out);
   }
 }

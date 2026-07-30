@@ -1,4 +1,4 @@
-import { assertHexColor, assertMargin, assertScaling, resolve } from './helpers.js';
+import { resolve } from './helpers.js';
 import type {
   DisplayControls,
   DisplayPrefs,
@@ -7,6 +7,10 @@ import type {
   Margin,
   MouseInteraction,
 } from './types.js';
+import {
+  DisplayControls as ValidateDisplayControls,
+  DisplayPrefs as ValidateDisplayPrefs,
+} from '../validate/index.js';
 
 function normalizeMouse(value: MouseInteraction | undefined): MouseInteraction | undefined {
   if (!value) return undefined;
@@ -24,23 +28,6 @@ function normalizeInteraction(value: InteractionPrefs | undefined): InteractionP
     ...(value.keyboard === undefined ? {} : { keyboard: value.keyboard.map(String) }),
     ...(value.mouse === undefined ? {} : { mouse: normalizeMouse(value.mouse) }),
   };
-}
-
-export function validateDisplayCommon(
-  display: Pick<
-    DisplayPrefs,
-    'scaling' | 'margin' | 'background' | 'autoplay' | 'loop' | 'interaction'
-  >,
-  fieldName: string
-): void {
-  if (display.scaling !== undefined) assertScaling(String(display.scaling), `${fieldName}.scaling`);
-  if (display.margin !== undefined) assertMargin(display.margin as Margin, `${fieldName}.margin`);
-  if (display.background !== undefined)
-    assertHexColor(String(display.background), `${fieldName}.background`);
-  if (display.autoplay !== undefined && typeof display.autoplay !== 'boolean')
-    throw new Error(`dp1: ${fieldName}.autoplay must be a boolean`);
-  if (display.loop !== undefined && typeof display.loop !== 'boolean')
-    throw new Error(`dp1: ${fieldName}.loop must be a boolean`);
 }
 
 export class MouseInteractionBuilder {
@@ -121,7 +108,6 @@ export class DisplayPrefsBuilder {
   }
 
   build(): DisplayPrefs {
-    validateDisplayCommon(this.display, 'display');
     const out: DisplayPrefs = {
       ...(this.display.scaling === undefined ? {} : { scaling: this.display.scaling }),
       ...(this.display.margin === undefined ? {} : { margin: this.display.margin }),
@@ -135,6 +121,7 @@ export class DisplayPrefsBuilder {
         ? {}
         : { userOverrides: this.display.userOverrides }),
     };
+    ValidateDisplayPrefs(out);
     return structuredClone(out);
   }
 }
@@ -173,7 +160,6 @@ export class DisplayControlsBuilder {
   }
 
   build(): DisplayControls {
-    validateDisplayCommon(this.display, 'controls.display');
     const out: DisplayControls = {
       ...(this.display.scaling === undefined ? {} : { scaling: this.display.scaling }),
       ...(this.display.margin === undefined ? {} : { margin: this.display.margin }),
@@ -184,6 +170,7 @@ export class DisplayControlsBuilder {
         ? {}
         : { interaction: normalizeInteraction(this.display.interaction) }),
     };
+    ValidateDisplayControls(out);
     return structuredClone(out);
   }
 }

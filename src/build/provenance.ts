@@ -1,4 +1,4 @@
-import { assertHex64, assertUri, resolve } from './helpers.js';
+import { resolve } from './helpers.js';
 import type {
   Chain,
   Contract,
@@ -7,52 +7,11 @@ import type {
   ProvenanceType,
   TokenStandard,
 } from './types.js';
-
-function assertChain(value: unknown, fieldName: string): asserts value is Chain {
-  const v = String(value ?? '');
-  if (!['evm', 'tezos', 'bitmark', 'other'].includes(v))
-    throw new Error(`dp1: ${fieldName} must be one of evm|tezos|bitmark|other`);
-}
-
-function assertStandard(value: unknown, fieldName: string): asserts value is TokenStandard {
-  const v = String(value ?? '');
-  if (!['erc721', 'erc1155', 'fa2', 'other'].includes(v))
-    throw new Error(`dp1: ${fieldName} must be one of erc721|erc1155|fa2|other`);
-}
-
-function validateContract(contract: Contract): Contract {
-  const out: Contract = {
-    ...(contract.chain === undefined ? {} : { chain: contract.chain }),
-    ...(contract.standard === undefined ? {} : { standard: contract.standard }),
-    ...(contract.address === undefined ? {} : { address: contract.address }),
-    ...(contract.seriesId === undefined ? {} : { seriesId: contract.seriesId }),
-    ...(contract.tokenId === undefined ? {} : { tokenId: contract.tokenId }),
-    ...(contract.uri === undefined ? {} : { uri: contract.uri }),
-    ...(contract.metaHash === undefined ? {} : { metaHash: contract.metaHash }),
-  };
-
-  if (out.chain !== undefined) assertChain(out.chain, 'contract.chain');
-  if (out.standard !== undefined) assertStandard(out.standard, 'contract.standard');
-  if (out.seriesId !== undefined) {
-    if (!Number.isInteger(out.seriesId) || out.seriesId < 0)
-      throw new Error('dp1: contract.seriesId must be an integer >= 0');
-  }
-  if (out.uri !== undefined) assertUri(out.uri, 'contract.uri');
-  if (out.metaHash !== undefined) out.metaHash = assertHex64(out.metaHash, 'contract.metaHash');
-  return structuredClone(out);
-}
-
-function validateDependency(dep: Dependency): Dependency {
-  const out: Dependency = {
-    ...(dep.chain === undefined ? {} : { chain: dep.chain }),
-    ...(dep.standard === undefined ? {} : { standard: dep.standard }),
-    ...(dep.uri === undefined ? {} : { uri: dep.uri }),
-  };
-  if (out.chain !== undefined) assertChain(out.chain, 'dependency.chain');
-  if (out.standard !== undefined) assertStandard(out.standard, 'dependency.standard');
-  if (out.uri !== undefined) assertUri(out.uri, 'dependency.uri');
-  return structuredClone(out);
-}
+import {
+  Contract as ValidateContract,
+  Dependency as ValidateDependency,
+  ProvenanceBlock as ValidateProvenanceBlock,
+} from '../validate/index.js';
 
 export class ContractBuilder {
   private contract: Contract = {};
@@ -93,7 +52,9 @@ export class ContractBuilder {
   }
 
   build(): Contract {
-    return validateContract(this.contract);
+    const out: Contract = structuredClone(this.contract);
+    ValidateContract(out);
+    return out;
   }
 }
 
@@ -112,7 +73,9 @@ export class DependencyBuilder {
     return this;
   }
   build(): Dependency {
-    return validateDependency(this.dep);
+    const out: Dependency = structuredClone(this.dep);
+    ValidateDependency(out);
+    return out;
   }
 }
 
@@ -141,22 +104,12 @@ export class ProvenanceBuilder {
   }
 
   build(): ProvenanceBlock {
-    const type = String(this.prov.type ?? '') as ProvenanceType;
-    if (!['onChain', 'seriesRegistry', 'offChainURI'].includes(type)) {
-      throw new Error('dp1: provenance.type must be onChain|seriesRegistry|offChainURI');
-    }
     const out: ProvenanceBlock = {
-      type,
-      ...(this.prov.contract === undefined
-        ? {}
-        : { contract: validateContract(this.prov.contract) }),
-      ...(this.prov.dependencies === undefined
-        ? {}
-        : { dependencies: this.prov.dependencies.map(validateDependency) }),
+      type: String(this.prov.type ?? '') as ProvenanceType,
+      ...(this.prov.contract === undefined ? {} : { contract: this.prov.contract }),
+      ...(this.prov.dependencies === undefined ? {} : { dependencies: this.prov.dependencies }),
     };
-    if ((out.type === 'onChain' || out.type === 'seriesRegistry') && !out.contract) {
-      throw new Error('dp1: provenance.contract is required for onChain and seriesRegistry');
-    }
+    ValidateProvenanceBlock(out);
     return structuredClone(out);
   }
 }

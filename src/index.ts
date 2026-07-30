@@ -40,9 +40,26 @@ export {
   PlaylistsExtensionDocument,
 } from './extension/playlists/index.js';
 export {
+  Playlist as ValidatePlaylist,
+  PlaylistGroup as ValidatePlaylistGroup,
+  ChannelsExtension as ValidateChannel,
   PlaylistItem as ValidatePlaylistItem,
   PlaylistsExtensionFragment as ValidatePlaylistsExtensionFragment,
+  Note as ValidateNote,
+  Entity as ValidateEntity,
+  DynamicQuery as ValidateDynamicQuery,
+  ResponseMapping as ValidateResponseMapping,
+  DisplayPrefs as ValidateDisplayPrefs,
+  DisplayControls as ValidateDisplayControls,
+  ReproBlock as ValidateReproBlock,
+  ProvenanceBlock as ValidateProvenanceBlock,
+  Thumbnail as ValidateThumbnail,
+  Artist as ValidateArtist,
+  Metadata as ValidateMetadata,
+  Controls as ValidateControls,
+  SafetyControls as ValidateSafetyControls,
 } from './validate/index.js';
+export type { RequireSignaturesOptions, ValidatePlaylistOptions } from './validate/index.js';
 
 export const SchemaHooks = {
   PlaylistCoreSchemaValidate: validate.Playlist,

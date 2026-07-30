@@ -1,4 +1,4 @@
-import { assertHex64, assertUri, resolve } from './helpers.js';
+import { resolve } from './helpers.js';
 import type {
   Artist,
   Controls,
@@ -7,7 +7,14 @@ import type {
   SafetyControls,
   Thumbnail,
 } from './types.js';
-import { DisplayControlsBuilder, validateDisplayCommon } from './display.js';
+import type { DisplayControlsBuilder } from './display.js';
+import {
+  Artist as ValidateArtist,
+  Controls as ValidateControls,
+  Metadata as ValidateMetadata,
+  SafetyControls as ValidateSafetyControls,
+  Thumbnail as ValidateThumbnail,
+} from '../validate/index.js';
 
 export class ThumbnailBuilder {
   private t: Partial<Thumbnail> = {};
@@ -34,10 +41,7 @@ export class ThumbnailBuilder {
       h: Number(this.t.h),
       ...(this.t.sha256 === undefined ? {} : { sha256: String(this.t.sha256) }),
     };
-    assertUri(out.uri, 'thumbnail.uri');
-    if (!Number.isInteger(out.w) || out.w < 1) throw new Error('dp1: thumbnail.w must be >= 1');
-    if (!Number.isInteger(out.h) || out.h < 1) throw new Error('dp1: thumbnail.h must be >= 1');
-    if (out.sha256 !== undefined) out.sha256 = assertHex64(out.sha256, 'thumbnail.sha256');
+    ValidateThumbnail(out);
     return structuredClone(out);
   }
 }
@@ -62,8 +66,7 @@ export class ArtistBuilder {
       ...(this.a.id === undefined ? {} : { id: String(this.a.id) }),
       ...(this.a.url === undefined ? {} : { url: String(this.a.url) }),
     };
-    if (!out.name.trim()) throw new Error('dp1: artist.name must be a non-empty string');
-    if (out.url !== undefined) assertUri(out.url, 'artist.url');
+    ValidateArtist(out);
     return structuredClone(out);
   }
 }
@@ -105,23 +108,8 @@ export class MetadataBuilder {
   }
   build(): Metadata {
     const out: Metadata = structuredClone(this.m);
-    if (out.thumbnails) {
-      for (const [k, v] of Object.entries(out.thumbnails)) {
-        if (!k) throw new Error('dp1: thumbnails keys must be non-empty');
-        const tb = new ThumbnailBuilder().uri(v.uri).widthPx(v.w).heightPx(v.h);
-        if (v.sha256 !== undefined) tb.sha256Hex(v.sha256);
-        out.thumbnails[k] = tb.build();
-      }
-    }
-    if (out.artists) {
-      out.artists = out.artists.map(a => {
-        const ab = new ArtistBuilder().name(a.name);
-        if (a.id !== undefined) ab.id(a.id);
-        if (a.url !== undefined) ab.url(a.url);
-        return ab.build();
-      });
-    }
-    return structuredClone(out);
+    ValidateMetadata(out);
+    return out;
   }
 }
 
@@ -141,35 +129,9 @@ export class SafetyControlsBuilder {
   }
   build(): SafetyControls {
     const out: SafetyControls = structuredClone(this.s);
-    if (out.orientation) {
-      for (const v of out.orientation) {
-        if (!['landscape', 'portrait', 'any'].includes(v))
-          throw new Error('dp1: safety.orientation must be landscape|portrait|any');
-      }
-    }
-    if (out.maxCpuPct !== undefined) {
-      if (!Number.isInteger(out.maxCpuPct) || out.maxCpuPct < 1 || out.maxCpuPct > 100)
-        throw new Error('dp1: safety.maxCpuPct must be an integer 1..100');
-    }
-    if (out.maxMemMB !== undefined) {
-      if (!Number.isInteger(out.maxMemMB) || out.maxMemMB < 1)
-        throw new Error('dp1: safety.maxMemMB must be an integer >= 1');
-    }
-    return structuredClone(out);
+    ValidateSafetyControls(out);
+    return out;
   }
-}
-
-function validateDisplayControls(display: DisplayControls): DisplayControls {
-  const db = new DisplayControlsBuilder();
-  if (display.scaling !== undefined) db.scaling(display.scaling);
-  if (display.margin !== undefined) db.margin(display.margin);
-  if (display.background !== undefined) db.background(display.background);
-  if (display.autoplay !== undefined) db.autoplay(display.autoplay);
-  if (display.loop !== undefined) db.loop(display.loop);
-  if (display.interaction !== undefined) db.interaction(display.interaction);
-  // Also run shared checks in case fields were partially omitted from builder path.
-  validateDisplayCommon(display, 'controls.display');
-  return db.build();
 }
 
 export class ControlsBuilder {
@@ -187,14 +149,7 @@ export class ControlsBuilder {
 
   build(): Controls {
     const out: Controls = structuredClone(this.c);
-    if (out.display) out.display = validateDisplayControls(out.display);
-    if (out.safety) {
-      const sb = new SafetyControlsBuilder();
-      if (out.safety.orientation) sb.orientation(out.safety.orientation);
-      if (out.safety.maxCpuPct !== undefined) sb.maxCpuPct(out.safety.maxCpuPct);
-      if (out.safety.maxMemMB !== undefined) sb.maxMemMB(out.safety.maxMemMB);
-      out.safety = sb.build();
-    }
-    return structuredClone(out);
+    ValidateControls(out);
+    return out;
   }
 }

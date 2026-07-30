@@ -88,7 +88,7 @@ console.log(channel.title);
 
 ### Sign and verify a playlist (legacy v1.0.x)
 
-`ParseAndValidatePlaylist` requires either a v1.1.0 `signatures` array or a legacy v1.0.x `signature` field. Signing helpers operate on the **unsigned** JSON payload (without signature fields):
+`ParseAndValidatePlaylist` requires either a v1.1.0 `signatures` array or a legacy v1.0.x `signature` field. Use `ValidatePlaylist(raw, { requireSignatures: false })` to schema-validate an unsigned draft before signing. Signing helpers operate on the **unsigned** JSON payload (without signature fields):
 
 ```ts
 import { signDP1Playlist, verifyPlaylistSignature } from 'dp1-js';
@@ -114,7 +114,7 @@ console.log(signature);
 console.log('Signature verified');
 ```
 
-For v1.1.0 multi-signature documents, use `SignMultiEd25519` / `VerifyPlaylistSignatures` from the signing API after schema-validating the unsigned payload.
+For v1.1.0 multi-signature documents, use `SignMultiEd25519` / `VerifyPlaylistSignatures` from the signing API after schema-validating the unsigned payload (`ValidatePlaylist(raw, { requireSignatures: false })`).
 
 ### Schedule playback with `displayAt`
 
@@ -155,7 +155,10 @@ Timezone rules (Playlist Extension §3.5.2):
 
 ## API Notes
 
-- `parseDP1Playlist(json)` returns a `{ playlist, error }` result for already-parsed JSON input.
+- `parseDP1Playlist(json)` returns a `{ playlist, error }` result for already-parsed JSON input (shape-only; not full schema).
+- `ValidatePlaylist(data, options?)` runs AJV against the core playlist schema. `requireSignatures` defaults to `true`; set `false` for unsigned drafts.
+- `ValidatePlaylistGroup(data, options?)` and `ValidateChannel(data, options?)` use the same `requireSignatures` option for playlist-group and channel documents.
+- Leaf helpers such as `ValidateNote`, `ValidateEntity`, `ValidateDisplayPrefs`, and `ValidateProvenanceBlock` run AJV against the matching schema `$defs` (builders use these on `build()`).
 - `ParseAndValidatePlaylist(data)` and `ParseAndValidateChannel(data)` accept raw JSON as `Buffer` or string and require signatures (multi-sig or legacy).
 - `signDP1Playlist(raw, privateKey)` returns a legacy `ed25519:<hex>` signature string for v1.0.x playlists.
 - `verifyPlaylistSignature(raw, signature, publicKey)` throws if verification fails.
