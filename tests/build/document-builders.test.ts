@@ -2,14 +2,19 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {
   ChannelBuilder,
+  ControlsBuilder,
   DisplayControlsBuilder,
+  DisplayPrefsBuilder,
   DynamicQueryBuilder,
   EntityBuilder,
+  MetadataBuilder,
   NoteBuilder,
   PlaylistBuilder,
   PlaylistGroupBuilder,
   PlaylistItemBuilder,
+  ProvenanceBuilder,
   RefManifestBuilder,
+  ReproBuilder,
   ResponseMappingBuilder,
 } from '../../src/build/index.js';
 import type { Channel } from '../../src/index.js';
@@ -160,8 +165,7 @@ test('Channel type accepts publisher signature role', () => {
         alg: 'ed25519',
         kid: 'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
         ts: '2025-01-01T00:00:00Z',
-        payload_hash:
-          'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
+        payload_hash: 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
         role: 'publisher',
         sig: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
       },
@@ -180,4 +184,114 @@ test('RefManifestBuilder builds validated manifest', () => {
   assert.equal(manifest.locale, 'en');
   assert.equal(manifest.metadata?.title, 'Work');
   assert.throws(() => new RefManifestBuilder().locale('EN').build(), isValidationError);
+});
+
+test('PlaylistItemBuilder covers optional core fields', () => {
+  const item = new PlaylistItemBuilder()
+    .id('11111111-1111-4111-8111-111111111111')
+    .slug('work-a')
+    .title('Work A')
+    .source('https://example.com/a.html')
+    .durationSeconds(30)
+    .license('open')
+    .ref('https://example.com/ref.json')
+    .override({ foo: 1 })
+    .display(new DisplayPrefsBuilder().scaling('fit'))
+    .repro(new ReproBuilder().seedHex('0xabcdef'))
+    .provenance(new ProvenanceBuilder().type('offChainURI'))
+    .build();
+  assert.equal(item.slug, 'work-a');
+  assert.equal(item.license, 'open');
+  assert.equal(item.display?.scaling, 'fit');
+  assert.equal(item.repro?.seed, '0xabcdef');
+  assert.equal(item.provenance?.type, 'offChainURI');
+  assert.throws(
+    () =>
+      new PlaylistItemBuilder()
+        .source('https://example.com/a.html')
+        .license('nope' as 'open')
+        .build(),
+    isValidationError
+  );
+});
+
+test('PlaylistBuilder covers defaults curators and coverImage', () => {
+  const playlist = new PlaylistBuilder()
+    .dpVersion('1.1.0')
+    .id('22222222-2222-4222-8222-222222222222')
+    .slug('show')
+    .title('Show')
+    .created('2026-01-01T00:00:00Z')
+    .defaults({ license: 'token' })
+    .defaultDisplay(new DisplayPrefsBuilder().loop(true))
+    .defaultLicense('open')
+    .defaultDurationSeconds(60)
+    .note(new NoteBuilder().text('intro'))
+    .addCurator(new EntityBuilder().name('C').key('did:key:z6Mk'))
+    .curators([new EntityBuilder().name('D').key('did:key:z6Mk')])
+    .coverImage('https://example.com/cover.png')
+    .addItem(
+      new PlaylistItemBuilder()
+        .source('https://example.com/a.html')
+        .displayAt('2026-07-21T00:00:00Z')
+    )
+    .build();
+  assert.equal(playlist.defaults?.license, 'open');
+  assert.equal(playlist.defaults?.duration, 60);
+  assert.equal(playlist.defaults?.display?.loop, true);
+  assert.equal(playlist.coverImage, 'https://example.com/cover.png');
+  assert.equal(playlist.curators?.[0]?.name, 'D');
+  assert.equal(playlist.items[0]?.displayAt, '2026-07-21T00:00:00Z');
+});
+
+test('ChannelBuilder covers optional metadata setters', () => {
+  const channel = new ChannelBuilder()
+    .id('33333333-3333-4333-8333-333333333333')
+    .slug('main-feed')
+    .title('Main')
+    .version('1.0.0')
+    .created('2026-01-01T00:00:00Z')
+    .playlists(['https://example.com/p.json'])
+    .curators([new EntityBuilder().name('C').key('did:key:z6Mk')])
+    .publisher(new EntityBuilder().name('P').key('did:key:z6Mk'))
+    .summary('S')
+    .coverImage('https://example.com/c.png')
+    .build();
+  assert.equal(channel.publisher?.name, 'P');
+  assert.equal(channel.summary, 'S');
+  assert.equal(channel.coverImage, 'https://example.com/c.png');
+  assert.equal(channel.curators?.[0]?.name, 'C');
+});
+
+test('PlaylistGroupBuilder covers optional metadata setters', () => {
+  const group = new PlaylistGroupBuilder()
+    .id('44444444-4444-4444-8444-444444444444')
+    .slug('ex')
+    .title('Exhibition')
+    .curator('Cur')
+    .summary('S')
+    .created('2026-01-01T00:00:00Z')
+    .coverImage('https://example.com/c.png')
+    .playlists(['https://example.com/p.json'])
+    .build();
+  assert.equal(group.slug, 'ex');
+  assert.equal(group.curator, 'Cur');
+  assert.equal(group.summary, 'S');
+  assert.equal(group.coverImage, 'https://example.com/c.png');
+});
+
+test('RefManifestBuilder covers explicit fields and i18n', () => {
+  const manifest = new RefManifestBuilder()
+    .refVersion('0.1.0')
+    .id('55555555-5555-4555-8555-555555555555')
+    .created('2026-01-01T00:00:00Z')
+    .locale('en')
+    .metadata(new MetadataBuilder().title('Work'))
+    .controls(new ControlsBuilder().display(new DisplayControlsBuilder().scaling('fit')))
+    .i18n({ fr: { title: 'Oeuvre' } })
+    .build();
+  assert.equal(manifest.refVersion, '0.1.0');
+  assert.equal(manifest.id, '55555555-5555-4555-8555-555555555555');
+  assert.equal(manifest.i18n?.fr?.title, 'Oeuvre');
+  assert.equal(manifest.metadata?.title, 'Work');
 });
