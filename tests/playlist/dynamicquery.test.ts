@@ -482,3 +482,82 @@ test('dynamic query resolution passes ctx signal and keeps canonical items', asy
   assert.equal(out.items.length, 2);
   assert.equal('Items' in out, false);
 });
+
+test('dynamic query keeps valid displayAt and rejects invalid displayAt', async () => {
+  const validSrv = await startServer((_req, res) => {
+    res.setHeader('content-type', 'application/json');
+    res.end(
+      JSON.stringify({
+        items: [
+          { source: 'https://dyn.example/a', displayAt: '2099-01-01T00:00:00Z' },
+          { source: 'https://dyn.example/c' },
+        ],
+      })
+    );
+  });
+  const validOut = (await ResolveDynamicQuery(
+    {
+      dpVersion: '1.1.0',
+      title: 't',
+      items: [{ source: 'https://static.example/day', displayAt: '2026-07-21T00:00:00Z' }],
+      dynamicQuery: {
+        profile: ProfileHTTPSJSONV1,
+        endpoint: `http://127.0.0.1:${serverPort(validSrv)}/json`,
+        responseMapping: { itemsPath: 'items' },
+      },
+    },
+    undefined,
+    {},
+    undefined,
+    { AllowInsecureHTTP: true }
+  )) as {
+    items: Array<{ source: string; displayAt?: string }>;
+  };
+  assert.equal(validOut.items[0]?.displayAt, '2026-07-21T00:00:00Z');
+  assert.equal(validOut.items[1]?.displayAt, '2099-01-01T00:00:00Z');
+  assert.equal(validOut.items[2]?.displayAt, undefined);
+  await new Promise(resolve => validSrv.close(resolve));
+
+  const invalidBodies = [
+    { name: 'null', body: { items: [{ source: 'https://dyn.example/null', displayAt: null }] } },
+    {
+      name: 'empty',
+      body: { items: [{ source: 'https://dyn.example/empty', displayAt: '' }] },
+    },
+    {
+      name: 'not_a_date',
+      body: { items: [{ source: 'https://dyn.example/bad', displayAt: 'not-a-date' }] },
+    },
+    {
+      name: 'date_only',
+      body: { items: [{ source: 'https://dyn.example/d', displayAt: '2026-07-21' }] },
+    },
+    {
+      name: 'number',
+      body: { items: [{ source: 'https://dyn.example/n', displayAt: 123 }] },
+    },
+  ];
+  for (const tc of invalidBodies) {
+    const srv = await startServer((_req, res) => {
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify(tc.body));
+    });
+    await assert.rejects(
+      () =>
+        PlaylistItemsFromDynamicQuery(
+          undefined,
+          {
+            profile: ProfileHTTPSJSONV1,
+            endpoint: `http://127.0.0.1:${serverPort(srv)}/json`,
+            responseMapping: { itemsPath: 'items' },
+          },
+          {},
+          undefined,
+          { AllowInsecureHTTP: true }
+        ),
+      err => err instanceof Error && err.message.startsWith(ErrDynamicQueryItemInvalid.message),
+      `expected ErrDynamicQueryItemInvalid for ${tc.name}`
+    );
+    await new Promise(resolve => srv.close(resolve));
+  }
+});

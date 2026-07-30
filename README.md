@@ -17,6 +17,7 @@ It is designed for Node.js 22+ and ships dual ESM/CJS entrypoints through the pa
 - Canonicalize signing payloads using RFC 8785-style JSON canonicalization.
 - Compute and verify payload hashes and Ed25519 signatures.
 - Merge display preferences with DP-1 resolution order.
+- Resolve playlist `displayAt` schedules into an active playback set and next timer.
 
 ## Install
 
@@ -115,6 +116,43 @@ console.log('Signature verified');
 
 For v1.1.0 multi-signature documents, use `SignMultiEd25519` / `VerifyPlaylistSignatures` from the signing API after schema-validating the unsigned payload.
 
+### Schedule playback with `displayAt`
+
+When at least one playlist item includes `displayAt`, only the current release window should play. Use these helpers to filter items and arm a timer for the next release:
+
+```ts
+import { computeActiveSet, nextDisplayAt, parseDisplayAt } from 'dp1-js';
+
+const playlist = {
+  dpVersion: '1.1.0',
+  title: 'Daily',
+  items: [
+    { source: 'https://example.com/intro.html' },
+    { source: 'https://example.com/day1.html', displayAt: '2026-07-21T00:00:00' },
+    { source: 'https://example.com/day2.html', displayAt: '2026-07-22T00:00:00' },
+    { source: 'https://example.com/day3.html', displayAt: '2026-07-23T00:00:00' },
+  ],
+};
+
+const now = new Date('2026-07-22T10:00:00Z');
+const active = computeActiveSet(playlist, now, 'Asia/Bangkok');
+const next = nextDisplayAt(playlist, now, 'Asia/Bangkok');
+const release = parseDisplayAt('2026-07-22T00:00:00', 'Asia/Bangkok');
+
+console.log(active.map(item => item.source));
+console.log(next?.toISOString());
+console.log(release.toISOString());
+```
+
+Timezone rules (Playlist Extension §3.5.2):
+
+- With `Z` or a colon offset (`+07:00`) → absolute instant
+- Without timezone → display-locale wall time (`localTimezone`, or the device timezone)
+- Date-only (`2026-07-21`) and compact offsets (`+0700`) are **not** accepted
+- DST gap → first valid local instant after the gap; fold → earlier of the two instants
+
+`parseDisplayAt` throws on malformed input. `computeActiveSet` / `nextDisplayAt` skip unresolvable `displayAt` values (not eligible, not a timer candidate) per §3.5.5.
+
 ## API Notes
 
 - `parseDP1Playlist(json)` returns a `{ playlist, error }` result for already-parsed JSON input.
@@ -123,10 +161,16 @@ For v1.1.0 multi-signature documents, use `SignMultiEd25519` / `VerifyPlaylistSi
 - `verifyPlaylistSignature(raw, signature, publicKey)` throws if verification fails.
 - `ParseDPVersion(version)` is available for version parsing and major-version checks.
 - `DisplayForItem(def, ref, item)` merges display preferences using the same field-level overlay order as `dp1-go`.
+- `parseDisplayAt(displayAt, localTimezone?)` parses item release times with the timezone rules above; throws on malformed input.
+- `parseDisplayAtNanoseconds(displayAt, localTimezone?)` returns the exact epoch nanoseconds used by the scheduler; use it when sub-millisecond release times matter.
+- `computeActiveSet(playlist, now, localTimezone?)` activates `displayAt` scheduling whenever at least one item has that field; otherwise it returns all items. `now` accepts a `Date` (millisecond precision) or epoch-nanoseconds `bigint` for exact sub-millisecond scheduling. Unresolvable `displayAt` values are skipped.
+- `nextDisplayAt(playlist, now, localTimezone?)` returns the soonest future resolvable `displayAt`. With `bigint` `now`, it returns epoch nanoseconds; with `Date` `now`, it returns a `Date` rounded up to avoid early timers.
 
 ## Validation parity with dp1-go
 
 Embedded JSON Schema files under `src/schema/` are kept in sync with [`display-protocol/dp1-go`](https://github.com/display-protocol/dp1-go) (`internal/schema/`). Payloads that passed validation under older, looser schemas may now fail — for example invalid `license` values, provenance blocks without `type`, or ref-manifest thumbnails missing required dimensions.
+
+The item-level `displayAt` field follows the Playlist Extension v0.2.0 overlay (display-protocol/dp1 PR [#37](https://github.com/display-protocol/dp1/pull/37)); it is optional and ignored by older runtimes. `playlist.schedule` is not part of this extension.
 
 See [CHANGELOG.md](./CHANGELOG.md) for breaking validation changes.
 

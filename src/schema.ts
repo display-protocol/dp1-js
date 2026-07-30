@@ -6,4 +6,5 @@ export {
   ChannelsExtension,
   PlaylistsExtensionFragment,
   PlaylistItem,
+  PlaylistItemWithPlaylistsExtension,
 } from './validate/index.js';
