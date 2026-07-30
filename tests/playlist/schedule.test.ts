@@ -119,6 +119,17 @@ test('parseDisplayAt_preserves_years_before_0100', () => {
   );
 });
 
+test('parseDisplayAt_preserves_fractional_local_years_before_0100', () => {
+  assert.equal(
+    parseDisplayAt('0099-12-31T23:59:59.500', 'UTC').toISOString(),
+    '0099-12-31T23:59:59.500Z'
+  );
+  assert.equal(
+    parseDisplayAt('0000-01-01T00:00:00.500', 'UTC').toISOString(),
+    '0000-01-01T00:00:00.500Z'
+  );
+});
+
 test('computeActiveSet_mixed_items', () => {
   const playlist = dailyPlaylist([
     { source: 'https://example.com/intro', title: 'Intro' },
@@ -439,6 +450,21 @@ test('nextDisplayAt_skips_malformed_displayAt', () => {
 
   const next = nextDisplayAt(playlist, new Date('2026-07-22T10:00:00Z'));
   assert.equal(next?.toISOString(), '2026-07-23T00:00:00.000Z');
+});
+
+test('schedule_helpers_skip_owned_non_string_displayAt', () => {
+  const playlist = dailyPlaylist([
+    { source: 'https://example.com/bad', displayAt: null } as unknown as Playlist['items'][number],
+    { source: 'https://example.com/current', displayAt: '2026-07-22T00:00:00Z' },
+    { source: 'https://example.com/future', displayAt: '2026-07-23T00:00:00Z' },
+  ]);
+  const now = new Date('2026-07-22T10:00:00Z');
+
+  assert.deepEqual(
+    computeActiveSet(playlist, now).map(item => item.source),
+    ['https://example.com/current']
+  );
+  assert.equal(nextDisplayAt(playlist, now)?.toISOString(), '2026-07-23T00:00:00.000Z');
 });
 
 test('schedule_helpers_skip_whitespace_padded_displayAt', () => {

@@ -71,6 +71,7 @@ function readTimeZoneOffsetMs(instant: Date, timeZone: string): number {
   const formatter = new Intl.DateTimeFormat('en-US', {
     timeZone,
     year: 'numeric',
+    era: 'short',
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
@@ -81,9 +82,13 @@ function readTimeZoneOffsetMs(instant: Date, timeZone: string): number {
   const parts = formatter.formatToParts(floored);
   const read = (type: Intl.DateTimeFormatPartTypes) =>
     Number(parts.find(part => part.type === type)?.value);
-  const asUtc = Date.UTC(
-    read('year'),
-    read('month') - 1,
+  // Intl renders astronomical year 0 as 1 BC. Reconstruct the wire year before
+  // building a UTC timestamp, and use utcTimeMs so 0000–0099 are not remapped.
+  const year =
+    parts.find(part => part.type === 'era')?.value === 'BC' ? 1 - read('year') : read('year');
+  const asUtc = utcTimeMs(
+    year,
+    read('month'),
     read('day'),
     read('hour'),
     read('minute'),
@@ -106,6 +111,7 @@ function wallPartsInZone(instant: Date, timeZone: string): WallParts {
   const formatter = new Intl.DateTimeFormat('en-US', {
     timeZone,
     year: 'numeric',
+    era: 'short',
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
@@ -117,7 +123,7 @@ function wallPartsInZone(instant: Date, timeZone: string): WallParts {
   const read = (type: Intl.DateTimeFormatPartTypes) =>
     Number(parts.find(part => part.type === type)?.value);
   return {
-    year: read('year'),
+    year: parts.find(part => part.type === 'era')?.value === 'BC' ? 1 - read('year') : read('year'),
     month: read('month'),
     day: read('day'),
     hour: read('hour'),
@@ -291,7 +297,8 @@ type ItemDisplayAt =
   | { kind: 'invalid' };
 
 function resolveItemDisplayAt(item: PlaylistItem, localTimezone?: string): ItemDisplayAt {
-  if (typeof item.displayAt !== 'string') return { kind: 'none' };
+  if (!Object.hasOwn(item, 'displayAt')) return { kind: 'none' };
+  if (typeof item.displayAt !== 'string') return { kind: 'invalid' };
   try {
     return {
       kind: 'instant',
