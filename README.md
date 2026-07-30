@@ -14,6 +14,8 @@ It is designed for Node.js 22+ and ships dual ESM/CJS entrypoints through the pa
 ## Features
 
 - Parse and validate DP-1 playlist, playlist-group, ref manifest, and channel documents.
+- Schema-validate unsigned drafts via `Validate*` helpers (`requireSignatures: false`).
+- Build DP-1 documents and leaf structures with fluent builders backed by AJV schemas.
 - Canonicalize signing payloads using RFC 8785-style JSON canonicalization.
 - Compute and verify payload hashes and Ed25519 signatures.
 - Merge display preferences with DP-1 resolution order.
@@ -26,6 +28,22 @@ npm install dp1-js
 ```
 
 ## Quick Start
+
+### Build a playlist and validate unsigned
+
+```ts
+import { PlaylistBuilder, PlaylistItemBuilder, NoteBuilder } from 'dp1-js';
+
+const playlist = new PlaylistBuilder()
+  .title('Draft show')
+  .addItem(new PlaylistItemBuilder().source('https://example.com/a.html'))
+  .note(new NoteBuilder().text('Intermission').durationSeconds(20))
+  .build();
+```
+
+`build()` schema-validates an unsigned document (`requireSignatures: false`). Required fields still must be set — omitting `title` / channel `slug` fails AJV. When omitted, document builders generate stable `id` and `created` on first `build()` (persisted on the builder). Document builders also cover playlist groups, channels, and ref manifests.
+
+`format: uri` follows AJV/`ajv-formats` (absolute URIs, including non-`http(s)` schemes). Runtime fetch policies (for example dynamicQuery) may still reject non-HTTP endpoints.
 
 ### Parse and validate a playlist
 
@@ -88,7 +106,7 @@ console.log(channel.title);
 
 ### Sign and verify a playlist (legacy v1.0.x)
 
-`ParseAndValidatePlaylist` requires either a v1.1.0 `signatures` array or a legacy v1.0.x `signature` field. Signing helpers operate on the **unsigned** JSON payload (without signature fields):
+`ParseAndValidatePlaylist` requires either a v1.1.0 `signatures` array or a legacy v1.0.x `signature` field. Use `ValidatePlaylist(raw, { requireSignatures: false })` to schema-validate an unsigned draft before signing. Signing helpers operate on the **unsigned** JSON payload (without signature fields):
 
 ```ts
 import { signDP1Playlist, verifyPlaylistSignature } from 'dp1-js';
@@ -114,7 +132,7 @@ console.log(signature);
 console.log('Signature verified');
 ```
 
-For v1.1.0 multi-signature documents, use `SignMultiEd25519` / `VerifyPlaylistSignatures` from the signing API after schema-validating the unsigned payload.
+For v1.1.0 multi-signature documents, use `SignMultiEd25519` / `VerifyPlaylistSignatures` from the signing API after schema-validating the unsigned payload (`ValidatePlaylist(raw, { requireSignatures: false })`).
 
 ### Schedule playback with `displayAt`
 
@@ -155,7 +173,11 @@ Timezone rules (Playlist Extension §3.5.2):
 
 ## API Notes
 
-- `parseDP1Playlist(json)` returns a `{ playlist, error }` result for already-parsed JSON input.
+- `parseDP1Playlist(json)` returns a `{ playlist, error }` result for already-parsed JSON input (shape-only; not full schema).
+- `ValidatePlaylist(data, options?)` runs AJV against the core playlist schema. `requireSignatures` defaults to `true`; set `false` for unsigned drafts. Accepts `Buffer`, JSON string, or a parsed object.
+- `ValidatePlaylistGroup`, `ValidateChannel`, and `ValidatePlaylistWithPlaylistsExtension` use the same `requireSignatures` option.
+- Leaf helpers such as `ValidateNote`, `ValidateEntity`, `ValidateDisplayPrefs`, `ValidateProvenanceBlock`, and `ValidateRefManifest` run AJV against the matching schema / `$defs` (builders use these on `build()`).
+- Leaf builders (`NoteBuilder`, `DisplayPrefsBuilder`, …) and document builders (`PlaylistBuilder`, `PlaylistGroupBuilder`, `ChannelBuilder`, `RefManifestBuilder`, `PlaylistItemBuilder`) are exported from the package root. Builder `Playlist`/`PlaylistItem` draft shapes stay internal to avoid colliding with the looser parse types exported as `Playlist` / `PlaylistItem`.
 - `ParseAndValidatePlaylist(data)` and `ParseAndValidateChannel(data)` accept raw JSON as `Buffer` or string and require signatures (multi-sig or legacy).
 - `signDP1Playlist(raw, privateKey)` returns a legacy `ed25519:<hex>` signature string for v1.0.x playlists.
 - `verifyPlaylistSignature(raw, signature, publicKey)` throws if verification fails.

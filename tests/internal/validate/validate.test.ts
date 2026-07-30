@@ -54,6 +54,138 @@ test('Playlist_MissingSignature', () => {
   assert.throws(() =>
     Playlist(Buffer.from('{"dpVersion":"1.1.0","title":"x","items":[{"source":"https://a"}]}'))
   );
+  // Default requireSignatures is true (same as omitting the option).
+  assert.throws(() =>
+    Playlist(Buffer.from('{"dpVersion":"1.1.0","title":"x","items":[{"source":"https://a"}]}'), {
+      requireSignatures: true,
+    })
+  );
+});
+
+test('Playlist_requireSignaturesFalse_acceptsUnsignedValid', () => {
+  assert.doesNotThrow(() =>
+    Playlist(Buffer.from('{"dpVersion":"1.1.0","title":"x","items":[{"source":"https://a"}]}'), {
+      requireSignatures: false,
+    })
+  );
+});
+
+test('Playlist_requireSignaturesFalse_stillEnforcesSchema', () => {
+  assert.throws(() =>
+    Playlist(Buffer.from('{"dpVersion":"1.1.0","title":"","items":[{"source":"https://a"}]}'), {
+      requireSignatures: false,
+    })
+  );
+  assert.throws(() =>
+    Playlist(Buffer.from('{"dpVersion":"1.1.0","title":"x","items":[]}'), {
+      requireSignatures: false,
+    })
+  );
+  assert.throws(() =>
+    Playlist(
+      Buffer.from(
+        '{"dpVersion":"1.1.0","title":"x","items":[{"source":"https://a","license":"invalid"}]}'
+      ),
+      { requireSignatures: false }
+    )
+  );
+});
+
+test('Playlist_requireSignaturesFalse_acceptsSignedDocs', () => {
+  assert.doesNotThrow(() =>
+    Playlist(
+      Buffer.from(
+        '{"dpVersion":"1.1.0","title":"x","items":[{"source":"https://a"}],"signatures":[{"alg":"ed25519","kid":"did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK","ts":"2025-01-01T00:00:00Z","payload_hash":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","role":"curator","sig":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}]}'
+      ),
+      { requireSignatures: false }
+    )
+  );
+});
+
+test('PlaylistGroup_MissingSignature', () => {
+  assert.throws(() =>
+    PlaylistGroup(
+      Buffer.from(
+        '{"id":"385f79b6-a45f-4c1c-8080-e93a192adccc","title":"g","playlists":["https://p"],"created":"2025-01-01T00:00:00Z"}'
+      )
+    )
+  );
+});
+
+test('PlaylistGroup_requireSignaturesFalse_acceptsUnsignedValid', () => {
+  assert.doesNotThrow(() =>
+    PlaylistGroup(
+      Buffer.from(
+        '{"id":"385f79b6-a45f-4c1c-8080-e93a192adccc","title":"g","playlists":["https://p"],"created":"2025-01-01T00:00:00Z"}'
+      ),
+      { requireSignatures: false }
+    )
+  );
+});
+
+test('PlaylistGroup_requireSignaturesFalse_stillEnforcesSchema', () => {
+  assert.throws(() =>
+    PlaylistGroup(
+      Buffer.from(
+        '{"id":"not-uuid","title":"g","playlists":["https://p"],"created":"2025-01-01T00:00:00Z"}'
+      ),
+      { requireSignatures: false }
+    )
+  );
+});
+
+test('ChannelsExtension_MissingSignature', () => {
+  assert.throws(() =>
+    ChannelsExtension(
+      Buffer.from(
+        '{"id":"385f79b6-a45f-4c1c-8080-e93a192adccc","slug":"s","title":"c","version":"1.0.0","created":"2025-01-01T00:00:00Z","playlists":["https://p"]}'
+      )
+    )
+  );
+});
+
+test('ChannelsExtension_requireSignaturesFalse_acceptsUnsignedValid', () => {
+  assert.doesNotThrow(() =>
+    ChannelsExtension(
+      Buffer.from(
+        '{"id":"385f79b6-a45f-4c1c-8080-e93a192adccc","slug":"s","title":"c","version":"1.0.0","created":"2025-01-01T00:00:00Z","playlists":["https://p"]}'
+      ),
+      { requireSignatures: false }
+    )
+  );
+});
+
+test('ChannelsExtension_requireSignaturesFalse_stillEnforcesSchema', () => {
+  assert.throws(() =>
+    ChannelsExtension(
+      Buffer.from(
+        '{"id":"385f79b6-a45f-4c1c-8080-e93a192adccc","slug":"bad slug","title":"c","version":"1.0.0","created":"2025-01-01T00:00:00Z","playlists":["https://p"]}'
+      ),
+      { requireSignatures: false }
+    )
+  );
+});
+
+test('PlaylistWithPlaylistsExtension_requireSignaturesFalse_acceptsUnsignedWithSummary', () => {
+  assert.doesNotThrow(() =>
+    PlaylistWithPlaylistsExtension(
+      {
+        dpVersion: '1.1.0',
+        title: 'x',
+        items: [{ source: 'https://a' }],
+        summary: 'curatorial note',
+      },
+      { requireSignatures: false }
+    )
+  );
+  assert.throws(() =>
+    PlaylistWithPlaylistsExtension({
+      dpVersion: '1.1.0',
+      title: 'x',
+      items: [{ source: 'https://a' }],
+      summary: 'curatorial note',
+    })
+  );
 });
 
 test('Playlist_validationFailures', () => {

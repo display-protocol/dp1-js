@@ -64,7 +64,7 @@ test('package root imports from ESM and CommonJS consumers', async () => {
       [
         '--input-type=module',
         '-e',
-        `const mod = await import(${JSON.stringify(packageJson.name)}); if (typeof mod.parsePlaylist !== 'function') throw new Error('missing parsePlaylist'); if (typeof mod.computeActiveSet !== 'function' || typeof mod.nextDisplayAt !== 'function' || typeof mod.parseDisplayAt !== 'function') throw new Error('missing displayAt helpers');`,
+        `const mod = await import(${JSON.stringify(packageJson.name)}); if (typeof mod.parsePlaylist !== 'function') throw new Error('missing parsePlaylist'); if (typeof mod.ValidatePlaylist !== 'function') throw new Error('missing ValidatePlaylist'); if (typeof mod.ValidateRefManifest !== 'function') throw new Error('missing ValidateRefManifest'); if (typeof mod.NoteBuilder !== 'function') throw new Error('missing NoteBuilder'); if (typeof mod.PlaylistBuilder !== 'function' || typeof mod.ChannelBuilder !== 'function' || typeof mod.RefManifestBuilder !== 'function') throw new Error('missing document builders'); if (typeof mod.computeActiveSet !== 'function' || typeof mod.nextDisplayAt !== 'function' || typeof mod.parseDisplayAt !== 'function') throw new Error('missing displayAt helpers');`,
       ],
       sandbox
     );
@@ -73,7 +73,7 @@ test('package root imports from ESM and CommonJS consumers', async () => {
     const cjs = runNode(
       [
         '-e',
-        `const mod = require(${JSON.stringify(packageJson.name)}); if (typeof mod.parsePlaylist !== 'function') throw new Error('missing parsePlaylist'); if (typeof mod.computeActiveSet !== 'function' || typeof mod.nextDisplayAt !== 'function' || typeof mod.parseDisplayAt !== 'function') throw new Error('missing displayAt helpers');`,
+        `const mod = require(${JSON.stringify(packageJson.name)}); if (typeof mod.parsePlaylist !== 'function') throw new Error('missing parsePlaylist'); if (typeof mod.ValidatePlaylist !== 'function') throw new Error('missing ValidatePlaylist'); if (typeof mod.ValidateRefManifest !== 'function') throw new Error('missing ValidateRefManifest'); if (typeof mod.NoteBuilder !== 'function') throw new Error('missing NoteBuilder'); if (typeof mod.PlaylistBuilder !== 'function' || typeof mod.ChannelBuilder !== 'function' || typeof mod.RefManifestBuilder !== 'function') throw new Error('missing document builders'); if (typeof mod.computeActiveSet !== 'function' || typeof mod.nextDisplayAt !== 'function' || typeof mod.parseDisplayAt !== 'function') throw new Error('missing displayAt helpers');`,
       ],
       sandbox
     );
