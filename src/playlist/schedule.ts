@@ -16,9 +16,28 @@ function resolvedLocalTimezone(localTimezone?: string): string {
   return localTimezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
-function parseFractionalMs(frac: string | undefined): number {
-  if (!frac) return 0;
-  return Number(frac.slice(0, 3).padEnd(3, '0'));
+const NANOSECONDS_PER_MILLISECOND = 1_000_000n;
+
+function parseFractionalNanoseconds(frac: string | undefined): bigint {
+  if (!frac) return 0n;
+  // DP-1 and dp1-go resolve fractions at nanosecond precision.
+  return BigInt(frac.slice(0, 9).padEnd(9, '0'));
+}
+
+function dateToNanoseconds(date: Date): bigint {
+  return BigInt(date.getTime()) * NANOSECONDS_PER_MILLISECOND;
+}
+
+function nanosecondsToDate(nanoseconds: bigint, roundUp: boolean): Date {
+  let milliseconds = nanoseconds / NANOSECONDS_PER_MILLISECOND;
+  const remainder = nanoseconds % NANOSECONDS_PER_MILLISECOND;
+  if (remainder !== 0n) {
+    // BigInt division truncates toward zero. Parse compatibility requires floor,
+    // while timer results require ceil so they never fire before a release.
+    if (roundUp && nanoseconds > 0n) milliseconds += 1n;
+    if (!roundUp && nanoseconds < 0n) milliseconds -= 1n;
+  }
+  return new Date(Number(milliseconds));
 }
 
 function utcTimeMs(
@@ -140,9 +159,10 @@ function wallTimeInZoneToDate(
   hour: number,
   minute: number,
   second: number,
-  millisecond: number,
+  fractionNanoseconds: bigint,
   timeZone: string
-): Date {
+): { date: Date; preservesFraction: boolean } {
+  const millisecond = Number(fractionNanoseconds / NANOSECONDS_PER_MILLISECOND);
   const desired: WallParts = { year, month, day, hour, minute, second };
   const guess = utcTimeMs(year, month, day, hour, minute, second);
   const matches: number[] = [];
@@ -159,7 +179,7 @@ function wallTimeInZoneToDate(
 
   if (matches.length > 0) {
     // Fold: earlier of the ambiguous instants. Unique match: that instant.
-    return new Date(Math.min(...matches) + millisecond);
+    return { date: new Date(Math.min(...matches) + millisecond), preservesFraction: true };
   }
 
   // Gap: seek the first local instant after the nonexistent wall time.
@@ -181,16 +201,14 @@ function wallTimeInZoneToDate(
   // Snap to the first local instant after the gap. The requested fractional part does not
   // survive: this is the transition boundary, matching dp1-go's firstInstantAfterGap.
   const snapped = Math.floor(found / 1000) * 1000;
-  return new Date(snapped);
+  return { date: new Date(snapped), preservesFraction: false };
 }
 
 /**
- * Parse a playlist item `displayAt` string per Playlist Extension §3.5.2.
- * With Z/colon-offset → absolute instant. Without timezone → display-locale wall time
- * (`localTimezone` or the device timezone). Date-only and compact offsets (`+0700`) are rejected.
- * Throws on empty or malformed input.
+ * Parse a playlist item `displayAt` into epoch nanoseconds per Playlist Extension §3.5.2.
+ * Fractions are resolved to nanoseconds, matching dp1-go; extra digits are truncated.
  */
-export function parseDisplayAt(displayAt: string, localTimezone?: string): Date {
+export function parseDisplayAtNanoseconds(displayAt: string, localTimezone?: string): bigint {
   if (!displayAt) throw new Error('dp1: displayAt must be a non-empty string');
 
   const absolute = DISPLAY_AT_ABSOLUTE_WIRE_RE.exec(displayAt);
@@ -198,10 +216,24 @@ export function parseDisplayAt(displayAt: string, localTimezone?: string): Date 
     const year = Number(absolute[1]);
     const month = Number(absolute[2]);
     const day = Number(absolute[3]);
+    const hour = Number(absolute[4]);
+    const minute = Number(absolute[5]);
+    const second = Number(absolute[6]);
     if (!isValidCalendarDate(year, month, day)) invalidDisplayAt(displayAt);
-    const parsed = new Date(displayAt);
-    if (Number.isNaN(parsed.getTime())) invalidDisplayAt(displayAt);
-    return parsed;
+
+    const timezone = absolute[8];
+    let offsetMs = 0;
+    if (timezone !== 'Z') {
+      const sign = timezone.startsWith('+') ? 1 : -1;
+      const offsetHours = Number(timezone.slice(1, 3));
+      const offsetMinutes = Number(timezone.slice(4, 6));
+      offsetMs = sign * (offsetHours * 60 + offsetMinutes) * 60_000;
+    }
+    return (
+      BigInt(utcTimeMs(year, month, day, hour, minute, second) - offsetMs) *
+        NANOSECONDS_PER_MILLISECOND +
+      parseFractionalNanoseconds(absolute[7])
+    );
   }
 
   const local = DISPLAY_AT_LOCAL_WIRE_RE.exec(displayAt);
@@ -213,19 +245,23 @@ export function parseDisplayAt(displayAt: string, localTimezone?: string): Date 
   const hour = Number(local[4]);
   const minute = Number(local[5]);
   const second = Number(local[6]);
-  const millisecond = parseFractionalMs(local[7]);
+  const fractionNanoseconds = parseFractionalNanoseconds(local[7]);
   if (!isValidCalendarDate(year, month, day)) invalidDisplayAt(displayAt);
 
   try {
-    return wallTimeInZoneToDate(
+    const resolved = wallTimeInZoneToDate(
       year,
       month,
       day,
       hour,
       minute,
       second,
-      millisecond,
+      fractionNanoseconds,
       resolvedLocalTimezone(localTimezone)
+    );
+    return (
+      dateToNanoseconds(resolved.date) +
+      (resolved.preservesFraction ? fractionNanoseconds % NANOSECONDS_PER_MILLISECOND : 0n)
     );
   } catch (err: unknown) {
     if (err instanceof RangeError) invalidDisplayAt(displayAt);
@@ -234,17 +270,33 @@ export function parseDisplayAt(displayAt: string, localTimezone?: string): Date 
 }
 
 /**
+ * Parse a playlist item `displayAt` string per Playlist Extension §3.5.2.
+ * With Z/colon-offset → absolute instant. Without timezone → display-locale wall time
+ * (`localTimezone` or the device timezone). Date-only and compact offsets (`+0700`) are rejected.
+ * Throws on empty or malformed input.
+ */
+export function parseDisplayAt(displayAt: string, localTimezone?: string): Date {
+  return nanosecondsToDate(parseDisplayAtNanoseconds(displayAt, localTimezone), false);
+}
+
+/**
  * Resolve item displayAt for eligibility.
  * - missing → evergreen (`none`)
  * - valid → `instant`
  * - invalid / unresolvable → `invalid` (not eligible, not a timer candidate)
  */
-type ItemDisplayAt = { kind: 'none' } | { kind: 'instant'; ms: number } | { kind: 'invalid' };
+type ItemDisplayAt =
+  | { kind: 'none' }
+  | { kind: 'instant'; nanoseconds: bigint }
+  | { kind: 'invalid' };
 
 function resolveItemDisplayAt(item: PlaylistItem, localTimezone?: string): ItemDisplayAt {
   if (typeof item.displayAt !== 'string') return { kind: 'none' };
   try {
-    return { kind: 'instant', ms: parseDisplayAt(item.displayAt, localTimezone).getTime() };
+    return {
+      kind: 'instant',
+      nanoseconds: parseDisplayAtNanoseconds(item.displayAt, localTimezone),
+    };
   } catch {
     return { kind: 'invalid' };
   }
@@ -258,25 +310,27 @@ function resolveItemDisplayAt(item: PlaylistItem, localTimezone?: string): ItemD
  */
 export function computeActiveSet(
   playlist: Playlist,
-  now: Date,
+  now: Date | bigint,
   localTimezone?: string
 ): PlaylistItem[] {
   if (!playlist.items.some(item => Object.hasOwn(item, 'displayAt'))) return [...playlist.items];
 
-  const nowMs = now.getTime();
+  const nowNanoseconds = typeof now === 'bigint' ? now : dateToNanoseconds(now);
   const resolved = playlist.items.map(item => resolveItemDisplayAt(item, localTimezone));
-  let maxPassedMs: number | null = null;
+  let maxPassedNanoseconds: bigint | null = null;
 
   for (const entry of resolved) {
-    if (entry.kind !== 'instant' || entry.ms > nowMs) continue;
-    if (maxPassedMs === null || entry.ms > maxPassedMs) maxPassedMs = entry.ms;
+    if (entry.kind !== 'instant' || entry.nanoseconds > nowNanoseconds) continue;
+    if (maxPassedNanoseconds === null || entry.nanoseconds > maxPassedNanoseconds) {
+      maxPassedNanoseconds = entry.nanoseconds;
+    }
   }
 
   return playlist.items.filter((_, index) => {
     const entry = resolved[index];
     if (entry.kind === 'none') return true;
     if (entry.kind === 'invalid') return false;
-    return maxPassedMs !== null && entry.ms === maxPassedMs;
+    return maxPassedNanoseconds !== null && entry.nanoseconds === maxPassedNanoseconds;
   });
 }
 
@@ -284,15 +338,28 @@ export function computeActiveSet(
  * Smallest future resolvable `displayAt` after `now` (§3.5.4).
  * Unresolvable wire forms are ignored. Returns null when none remain.
  */
-export function nextDisplayAt(playlist: Playlist, now: Date, localTimezone?: string): Date | null {
-  const nowMs = now.getTime();
-  let nextMs: number | null = null;
+export function nextDisplayAt(playlist: Playlist, now: Date, localTimezone?: string): Date | null;
+export function nextDisplayAt(
+  playlist: Playlist,
+  now: bigint,
+  localTimezone?: string
+): bigint | null;
+export function nextDisplayAt(
+  playlist: Playlist,
+  now: Date | bigint,
+  localTimezone?: string
+): Date | bigint | null {
+  const nowNanoseconds = typeof now === 'bigint' ? now : dateToNanoseconds(now);
+  let nextNanoseconds: bigint | null = null;
 
   for (const item of playlist.items) {
     const entry = resolveItemDisplayAt(item, localTimezone);
-    if (entry.kind !== 'instant' || entry.ms <= nowMs) continue;
-    if (nextMs === null || entry.ms < nextMs) nextMs = entry.ms;
+    if (entry.kind !== 'instant' || entry.nanoseconds <= nowNanoseconds) continue;
+    if (nextNanoseconds === null || entry.nanoseconds < nextNanoseconds) {
+      nextNanoseconds = entry.nanoseconds;
+    }
   }
 
-  return nextMs === null ? null : new Date(nextMs);
+  if (nextNanoseconds === null) return null;
+  return typeof now === 'bigint' ? nextNanoseconds : nanosecondsToDate(nextNanoseconds, true);
 }

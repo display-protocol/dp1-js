@@ -162,8 +162,9 @@ Timezone rules (Playlist Extension §3.5.2):
 - `ParseDPVersion(version)` is available for version parsing and major-version checks.
 - `DisplayForItem(def, ref, item)` merges display preferences using the same field-level overlay order as `dp1-go`.
 - `parseDisplayAt(displayAt, localTimezone?)` parses item release times with the timezone rules above; throws on malformed input.
-- `computeActiveSet(playlist, now, localTimezone?)` activates `displayAt` scheduling whenever at least one item has that field; otherwise it returns all items. Unresolvable `displayAt` values are skipped.
-- `nextDisplayAt(playlist, now, localTimezone?)` returns the soonest future resolvable `displayAt`.
+- `parseDisplayAtNanoseconds(displayAt, localTimezone?)` returns the exact epoch nanoseconds used by the scheduler; use it when sub-millisecond release times matter.
+- `computeActiveSet(playlist, now, localTimezone?)` activates `displayAt` scheduling whenever at least one item has that field; otherwise it returns all items. `now` accepts a `Date` (millisecond precision) or epoch-nanoseconds `bigint` for exact sub-millisecond scheduling. Unresolvable `displayAt` values are skipped.
+- `nextDisplayAt(playlist, now, localTimezone?)` returns the soonest future resolvable `displayAt`. With `bigint` `now`, it returns epoch nanoseconds; with `Date` `now`, it returns a `Date` rounded up to avoid early timers.
 
 ## Validation parity with dp1-go
 

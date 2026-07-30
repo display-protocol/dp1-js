@@ -1,6 +1,12 @@
 import { afterEach, test } from 'vitest';
 import assert from 'node:assert/strict';
-import { computeActiveSet, nextDisplayAt, parseDisplayAt, type Playlist } from '../../src/index.js';
+import {
+  computeActiveSet,
+  nextDisplayAt,
+  parseDisplayAt,
+  parseDisplayAtNanoseconds,
+  type Playlist,
+} from '../../src/index.js';
 import { PlaylistWithPlaylistsExtension } from '../../src/validate/index.js';
 
 const originalTz = process.env.TZ;
@@ -49,6 +55,20 @@ test('parseDisplayAt_preserves_fractional_seconds_in_local_time', () => {
   const utc = parseDisplayAt('2026-07-22T00:00:00.500', 'UTC');
   assert.equal(ny.toISOString(), '2026-07-15T16:00:00.500Z');
   assert.equal(utc.toISOString(), '2026-07-22T00:00:00.500Z');
+});
+
+test('parseDisplayAtNanoseconds_preserves_submillisecond_precision', () => {
+  const base = BigInt(new Date('2026-07-22T00:00:00Z').getTime()) * 1_000_000n;
+  assert.equal(parseDisplayAtNanoseconds('2026-07-22T00:00:00.0001Z'), base + 100_000n);
+  assert.equal(parseDisplayAtNanoseconds('2026-07-22T00:00:00.0009Z'), base + 900_000n);
+  assert.equal(parseDisplayAtNanoseconds('2026-07-22T00:00:00.0001', 'UTC'), base + 100_000n);
+});
+
+test('parseDisplayAt_floors_pre_epoch_submillisecond_values', () => {
+  assert.equal(
+    parseDisplayAt('1969-12-31T23:59:59.9999Z').toISOString(),
+    '1969-12-31T23:59:59.999Z'
+  );
 });
 
 test('parseDisplayAt_DST_gap_resolves_to_first_instant_after_gap', () => {
@@ -239,6 +259,37 @@ test('computeActiveSet_includes_fractional_local_displayAt_at_exact_now', () => 
     ['Work A']
   );
   assert.equal(nextDisplayAt(playlist, new Date('2026-07-22T00:00:00.500Z'), 'UTC'), null);
+});
+
+test('schedule_helpers_distinguish_submillisecond_displayAt_values', () => {
+  const playlist = dailyPlaylist([
+    { source: 'https://example.com/first', displayAt: '2026-07-22T00:00:00.0001Z' },
+    { source: 'https://example.com/second', displayAt: '2026-07-22T00:00:00.0009Z' },
+  ]);
+  const base = BigInt(new Date('2026-07-22T00:00:00Z').getTime()) * 1_000_000n;
+
+  assert.deepEqual(computeActiveSet(playlist, base), []);
+  assert.equal(nextDisplayAt(playlist, base), base + 100_000n);
+  assert.deepEqual(
+    computeActiveSet(playlist, base + 100_000n).map(item => item.source),
+    ['https://example.com/first']
+  );
+  assert.equal(nextDisplayAt(playlist, base + 100_000n), base + 900_000n);
+  assert.deepEqual(
+    computeActiveSet(playlist, base + 900_000n).map(item => item.source),
+    ['https://example.com/second']
+  );
+});
+
+test('nextDisplayAt_Date_rounds_submillisecond_values_up_to_avoid_early_timers', () => {
+  const playlist = dailyPlaylist([
+    { source: 'https://example.com/first', displayAt: '2026-07-22T00:00:00.0001Z' },
+  ]);
+
+  assert.equal(
+    nextDisplayAt(playlist, new Date('2026-07-22T00:00:00Z'))?.toISOString(),
+    '2026-07-22T00:00:00.001Z'
+  );
 });
 
 test('computeActiveSet_forwards_localTimezone', () => {
