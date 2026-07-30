@@ -55,6 +55,7 @@ test('package exports map points to build outputs', () => {
   });
 });
 
+// Runs a full `npm run build` before importing dist; CI + coverage can exceed the default 5s.
 test('package root imports from ESM and CommonJS consumers', async () => {
   ensureBuild();
   const sandbox = await createConsumerSandbox();
@@ -63,7 +64,7 @@ test('package root imports from ESM and CommonJS consumers', async () => {
       [
         '--input-type=module',
         '-e',
-        `const mod = await import(${JSON.stringify(packageJson.name)}); if (typeof mod.parsePlaylist !== 'function') throw new Error('missing parsePlaylist');`,
+        `const mod = await import(${JSON.stringify(packageJson.name)}); if (typeof mod.parsePlaylist !== 'function') throw new Error('missing parsePlaylist'); if (typeof mod.computeActiveSet !== 'function' || typeof mod.nextDisplayAt !== 'function' || typeof mod.parseDisplayAt !== 'function') throw new Error('missing displayAt helpers');`,
       ],
       sandbox
     );
@@ -72,7 +73,7 @@ test('package root imports from ESM and CommonJS consumers', async () => {
     const cjs = runNode(
       [
         '-e',
-        `const mod = require(${JSON.stringify(packageJson.name)}); if (typeof mod.parsePlaylist !== 'function') throw new Error('missing parsePlaylist');`,
+        `const mod = require(${JSON.stringify(packageJson.name)}); if (typeof mod.parsePlaylist !== 'function') throw new Error('missing parsePlaylist'); if (typeof mod.computeActiveSet !== 'function' || typeof mod.nextDisplayAt !== 'function' || typeof mod.parseDisplayAt !== 'function') throw new Error('missing displayAt helpers');`,
       ],
       sandbox
     );
@@ -80,4 +81,4 @@ test('package root imports from ESM and CommonJS consumers', async () => {
   } finally {
     await rm(sandbox, { recursive: true, force: true });
   }
-});
+}, 60_000);
