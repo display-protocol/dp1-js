@@ -55,6 +55,7 @@ test('package exports map points to build outputs', () => {
   });
 });
 
+// Runs a full `npm run build` before importing dist; CI + coverage can exceed the default 5s.
 test('package root imports from ESM and CommonJS consumers', async () => {
   ensureBuild();
   const sandbox = await createConsumerSandbox();
@@ -80,4 +81,4 @@ test('package root imports from ESM and CommonJS consumers', async () => {
   } finally {
     await rm(sandbox, { recursive: true, force: true });
   }
-});
+}, 60_000);
