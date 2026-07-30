@@ -12,6 +12,7 @@ import {
   RefManifestBuilder,
   ResponseMappingBuilder,
 } from '../../src/build/index.js';
+import type { Channel } from '../../src/index.js';
 import { ErrValidation } from '../../src/errors.js';
 
 function isValidationError(err: unknown): boolean {
@@ -144,6 +145,30 @@ test('ChannelBuilder builds unsigned channel', () => {
     () => new ChannelBuilder().slug('main-feed').title('Main').playlists([]).build(),
     isValidationError
   );
+});
+
+test('Channel type accepts publisher signature role', () => {
+  const channel = {
+    id: '385f79b6-a45f-4c1c-8080-e93a192adccc',
+    slug: 's',
+    title: 'c',
+    version: '1.0.0',
+    created: '2025-01-01T00:00:00Z',
+    playlists: ['https://p'],
+    signatures: [
+      {
+        alg: 'ed25519',
+        kid: 'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
+        ts: '2025-01-01T00:00:00Z',
+        payload_hash:
+          'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
+        role: 'publisher',
+        sig: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      },
+    ],
+  } satisfies Channel;
+
+  assert.equal(channel.signatures[0].role, 'publisher');
 });
 
 test('RefManifestBuilder builds validated manifest', () => {

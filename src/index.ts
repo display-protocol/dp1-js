@@ -129,6 +129,8 @@ export type {
   Builder,
   Defaults,
   Channel,
+  ChannelSignature,
+  ChannelSignatureRole,
   PlaylistGroup,
   RefManifest,
 } from './build/index.js';

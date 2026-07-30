@@ -114,6 +114,13 @@ export interface Signature {
   sig: string;
 }
 
+// Channel schema alone permits "publisher" on signatures; keep playlist/group roles narrower.
+export type ChannelSignatureRole = SignatureRole | 'publisher';
+
+export interface ChannelSignature extends Omit<Signature, 'role'> {
+  role: ChannelSignatureRole;
+}
+
 export interface Playlist {
   dpVersion: DPVersionString;
   id?: string;
@@ -240,6 +247,6 @@ export interface Channel {
   publisher?: Entity;
   summary?: string;
   coverImage?: string;
-  signatures?: Signature[];
+  signatures?: ChannelSignature[];
   signature?: string;
 }
