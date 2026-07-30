@@ -45,6 +45,7 @@ export {
   ChannelsExtension as ValidateChannel,
   PlaylistWithPlaylistsExtension as ValidatePlaylistWithPlaylistsExtension,
   PlaylistItem as ValidatePlaylistItem,
+  PlaylistItemWithPlaylistsExtension as ValidatePlaylistItemWithPlaylistsExtension,
   PlaylistsExtensionFragment as ValidatePlaylistsExtensionFragment,
   Note as ValidateNote,
   Entity as ValidateEntity,
@@ -87,6 +88,11 @@ export {
   MetadataBuilder,
   SafetyControlsBuilder,
   ControlsBuilder,
+  PlaylistItemBuilder,
+  PlaylistBuilder,
+  PlaylistGroupBuilder,
+  ChannelBuilder,
+  RefManifestBuilder,
   resolve,
   nowIso,
   generateId,
@@ -120,6 +126,10 @@ export type {
   SafetyControls,
   LicenseMode,
   Builder,
+  Defaults,
+  Channel,
+  PlaylistGroup,
+  RefManifest,
 } from './build/index.js';
 
 export const SchemaHooks = {

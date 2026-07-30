@@ -89,8 +89,10 @@ export interface PlaylistItem {
   display?: DisplayPrefs;
   repro?: ReproBlock;
   provenance?: ProvenanceBlock;
-  // Playlists extension overlay supports per-item note; kept optional and untyped here.
+  /** Playlists extension overlay. */
   note?: Note;
+  /** Playlists extension overlay (release schedule). */
+  displayAt?: string;
 }
 
 export interface Defaults {

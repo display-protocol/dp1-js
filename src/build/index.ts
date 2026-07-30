@@ -7,3 +7,8 @@ export * from './provenance.js';
 export * from './repro.js';
 export * from './dynamic-query.js';
 export * from './ref-manifest-blocks.js';
+export * from './playlist-item.js';
+export * from './playlist.js';
+export * from './playlist-group.js';
+export * from './channel.js';
+export * from './ref-manifest.js';
