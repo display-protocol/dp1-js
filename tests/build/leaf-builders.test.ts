@@ -16,10 +16,7 @@ import {
 } from '../../src/build/index.js';
 
 test('DisplayPrefsBuilder rejects short hex colors on build()', () => {
-  assert.throws(
-    () => new DisplayPrefsBuilder().background('#111').build(),
-    /#RRGGBB|transparent/i
-  );
+  assert.throws(() => new DisplayPrefsBuilder().background('#111').build(), /#RRGGBB|transparent/i);
   assert.doesNotThrow(() => new DisplayPrefsBuilder().background('#111111').build());
 });
 
@@ -88,13 +85,7 @@ test('ThumbnailBuilder enforces uri and dimensions', () => {
 });
 
 test('ReproBuilder rejects uppercase hex and validates plain frameHash', () => {
-  assert.throws(
-    () =>
-      new ReproBuilder()
-        .seedHex('0xABCDEF')
-        .build(),
-    /lowercase/i
-  );
+  assert.throws(() => new ReproBuilder().seedHex('0xABCDEF').build(), /lowercase/i);
   assert.throws(
     () =>
       new ReproBuilder()
@@ -116,7 +107,8 @@ test('ReproBuilder rejects uppercase hex and validates plain frameHash', () => {
 
 test('ControlsBuilder validates plain-object display scaling', () => {
   assert.throws(
-    () => new ControlsBuilder().display({ scaling: 'nope' as 'fit', background: '#111111' }).build(),
+    () =>
+      new ControlsBuilder().display({ scaling: 'nope' as 'fit', background: '#111111' }).build(),
     /scaling/i
   );
 });

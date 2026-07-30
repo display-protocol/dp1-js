@@ -29,4 +29,3 @@ export class EntityBuilder {
     return structuredClone(out);
   }
 }
-

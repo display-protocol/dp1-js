@@ -74,7 +74,9 @@ export class ReproBuilder {
 
   build(): ReproBlock {
     const out: ReproBlock = {
-      ...(this.repro.engineVersion === undefined ? {} : { engineVersion: this.repro.engineVersion }),
+      ...(this.repro.engineVersion === undefined
+        ? {}
+        : { engineVersion: this.repro.engineVersion }),
       ...(this.repro.seed === undefined ? {} : { seed: String(this.repro.seed) }),
       ...(this.repro.assetsSHA256 === undefined
         ? {}

@@ -47,4 +47,3 @@ test('assertUri rejects non-absolute values', () => {
   assert.doesNotThrow(() => assertUri('ipfs://Qmabc', 'u'));
   assert.throws(() => assertUri('not-a-uri', 'u'), /uri/i);
 });
-

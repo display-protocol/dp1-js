@@ -147,7 +147,9 @@ export class ProvenanceBuilder {
     }
     const out: ProvenanceBlock = {
       type,
-      ...(this.prov.contract === undefined ? {} : { contract: validateContract(this.prov.contract) }),
+      ...(this.prov.contract === undefined
+        ? {}
+        : { contract: validateContract(this.prov.contract) }),
       ...(this.prov.dependencies === undefined
         ? {}
         : { dependencies: this.prov.dependencies.map(validateDependency) }),

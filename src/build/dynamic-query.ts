@@ -26,7 +26,8 @@ export class ResponseMappingBuilder {
       itemSchema: String(this.mapping.itemSchema ?? ''),
       ...(this.mapping.itemMap === undefined ? {} : { itemMap: this.mapping.itemMap }),
     };
-    if (!out.itemsPath) throw new Error('dp1: responseMapping.itemsPath must be a non-empty string');
+    if (!out.itemsPath)
+      throw new Error('dp1: responseMapping.itemsPath must be a non-empty string');
     if (!out.itemSchema)
       throw new Error('dp1: responseMapping.itemSchema must be a non-empty string');
     if (!/^dp1\/\d+\.\d+$/.test(out.itemSchema))

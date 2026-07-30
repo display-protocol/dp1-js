@@ -23,4 +23,3 @@ export class NoteBuilder {
     return structuredClone(out);
   }
 }
-
