@@ -123,6 +123,16 @@ test('ControlsBuilder validates plain-object display scaling', () => {
   );
 });
 
+test('DisplayPrefsBuilder does not coerce non-boolean mouse flags', () => {
+  assert.throws(
+    () =>
+      new DisplayPrefsBuilder()
+        .interaction({ mouse: { click: 'yes' as unknown as boolean } })
+        .build(),
+    isValidationError
+  );
+});
+
 test('NoteBuilder enforces text length and duration', () => {
   assert.throws(() => new NoteBuilder().text('x'.repeat(501)).build(), isValidationError);
   assert.throws(() => new NoteBuilder().text('ok').durationSeconds(0).build(), isValidationError);

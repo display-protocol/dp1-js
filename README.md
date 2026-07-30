@@ -14,6 +14,8 @@ It is designed for Node.js 22+ and ships dual ESM/CJS entrypoints through the pa
 ## Features
 
 - Parse and validate DP-1 playlist, playlist-group, ref manifest, and channel documents.
+- Schema-validate unsigned drafts via `Validate*` helpers (`requireSignatures: false`).
+- Build leaf structures (display, provenance, note, entity, …) with fluent builders backed by AJV `$defs`.
 - Canonicalize signing payloads using RFC 8785-style JSON canonicalization.
 - Compute and verify payload hashes and Ed25519 signatures.
 - Merge display preferences with DP-1 resolution order.
@@ -26,6 +28,27 @@ npm install dp1-js
 ```
 
 ## Quick Start
+
+### Build a leaf block and validate an unsigned playlist
+
+```ts
+import { NoteBuilder, DisplayPrefsBuilder, ValidatePlaylist } from 'dp1-js';
+
+const note = new NoteBuilder().text('Intermission').durationSeconds(20).build();
+const display = new DisplayPrefsBuilder().background('#111111').scaling('fit').build();
+
+ValidatePlaylist(
+  {
+    dpVersion: '1.1.0',
+    title: 'Draft',
+    items: [{ source: 'https://example.com/a.html', display }],
+    note,
+  },
+  { requireSignatures: false }
+);
+```
+
+`format: uri` follows AJV/`ajv-formats` (absolute URIs, including non-`http(s)` schemes). Runtime fetch policies (for example dynamicQuery) may still reject non-HTTP endpoints.
 
 ### Parse and validate a playlist
 
@@ -156,9 +179,10 @@ Timezone rules (Playlist Extension §3.5.2):
 ## API Notes
 
 - `parseDP1Playlist(json)` returns a `{ playlist, error }` result for already-parsed JSON input (shape-only; not full schema).
-- `ValidatePlaylist(data, options?)` runs AJV against the core playlist schema. `requireSignatures` defaults to `true`; set `false` for unsigned drafts.
-- `ValidatePlaylistGroup(data, options?)` and `ValidateChannel(data, options?)` use the same `requireSignatures` option for playlist-group and channel documents.
+- `ValidatePlaylist(data, options?)` runs AJV against the core playlist schema. `requireSignatures` defaults to `true`; set `false` for unsigned drafts. Accepts `Buffer`, JSON string, or a parsed object.
+- `ValidatePlaylistGroup`, `ValidateChannel`, and `ValidatePlaylistWithPlaylistsExtension` use the same `requireSignatures` option.
 - Leaf helpers such as `ValidateNote`, `ValidateEntity`, `ValidateDisplayPrefs`, and `ValidateProvenanceBlock` run AJV against the matching schema `$defs` (builders use these on `build()`).
+- Leaf builders (`NoteBuilder`, `DisplayPrefsBuilder`, …) are exported from the package root.
 - `ParseAndValidatePlaylist(data)` and `ParseAndValidateChannel(data)` accept raw JSON as `Buffer` or string and require signatures (multi-sig or legacy).
 - `signDP1Playlist(raw, privateKey)` returns a legacy `ed25519:<hex>` signature string for v1.0.x playlists.
 - `verifyPlaylistSignature(raw, signature, publicKey)` throws if verification fails.

@@ -166,6 +166,28 @@ test('ChannelsExtension_requireSignaturesFalse_stillEnforcesSchema', () => {
   );
 });
 
+test('PlaylistWithPlaylistsExtension_requireSignaturesFalse_acceptsUnsignedWithSummary', () => {
+  assert.doesNotThrow(() =>
+    PlaylistWithPlaylistsExtension(
+      {
+        dpVersion: '1.1.0',
+        title: 'x',
+        items: [{ source: 'https://a' }],
+        summary: 'curatorial note',
+      },
+      { requireSignatures: false }
+    )
+  );
+  assert.throws(() =>
+    PlaylistWithPlaylistsExtension({
+      dpVersion: '1.1.0',
+      title: 'x',
+      items: [{ source: 'https://a' }],
+      summary: 'curatorial note',
+    })
+  );
+});
+
 test('Playlist_validationFailures', () => {
   assert.throws(() =>
     Playlist(

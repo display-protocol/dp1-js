@@ -42,6 +42,10 @@ function unsignedSchemaId(baseId: string): string {
 /**
  * Register a clone of a signed-document schema with the signature anyOf removed.
  * Uses a distinct `$id` so it does not collide with the canonical schema.
+ *
+ * Invariant: today these schemas use top-level `anyOf` only for
+ * `signatures` / legacy `signature`. Do not reuse this helper if `anyOf` gains
+ * unrelated branches.
  */
 function ensureUnsignedSchema(base: { readonly $id: string }): string {
   const id = unsignedSchemaId(base.$id);
@@ -51,6 +55,32 @@ function ensureUnsignedSchema(base: { readonly $id: string }): string {
   unsigned.$id = id;
   ajv.addSchema(unsigned);
   return id;
+}
+
+/**
+ * Composed playlist+extension schema requires signatures via the bundle $ref.
+ * Clone the bundle without signature anyOf, then point a composed schema at it.
+ */
+function ensureUnsignedPlaylistWithExtensionSchema(): string {
+  const composedId = unsignedSchemaId(playlistWithExt.$id);
+  if (ajv.getSchema(composedId)) return composedId;
+
+  const bundleId = unsignedSchemaId(playlistBundle.$id);
+  if (!ajv.getSchema(bundleId)) {
+    const unsignedBundle = structuredClone(playlistBundle) as Record<string, unknown>;
+    delete unsignedBundle.anyOf;
+    unsignedBundle.$id = bundleId;
+    ajv.addSchema(unsignedBundle);
+  }
+
+  const unsignedComposed = structuredClone(playlistWithExt) as {
+    $id: string;
+    allOf: Array<{ $ref: string }>;
+  };
+  unsignedComposed.$id = composedId;
+  unsignedComposed.allOf = [{ $ref: bundleId }, { $ref: playlistsExt.$id }];
+  ajv.addSchema(unsignedComposed);
+  return composedId;
 }
 
 function validationError(
@@ -136,8 +166,17 @@ export function ChannelsExtension(
   validateSignedDocument(channel, data, options);
 }
 
-export const PlaylistWithPlaylistsExtension = (data: Buffer | string | unknown) =>
-  validate(playlistWithExt.$id, data);
+export function PlaylistWithPlaylistsExtension(
+  data: Buffer | string | unknown,
+  options?: RequireSignaturesOptions
+): void {
+  const requireSignatures = options?.requireSignatures !== false;
+  if (requireSignatures) {
+    validate(playlistWithExt.$id, data);
+    return;
+  }
+  validate(ensureUnsignedPlaylistWithExtensionSchema(), data);
+}
 export const RefManifest = (data: Buffer | string | unknown) => validate(refManifest.$id, data);
 export const PlaylistsExtensionFragment = (data: Buffer | string | unknown) =>
   validate(playlistsExt.$id, data);

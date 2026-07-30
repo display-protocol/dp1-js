@@ -37,8 +37,8 @@ export class ThumbnailBuilder {
   build(): Thumbnail {
     const out: Thumbnail = {
       uri: String(this.t.uri ?? ''),
-      w: Number(this.t.w),
-      h: Number(this.t.h),
+      w: this.t.w as number,
+      h: this.t.h as number,
       ...(this.t.sha256 === undefined ? {} : { sha256: String(this.t.sha256) }),
     };
     ValidateThumbnail(out);

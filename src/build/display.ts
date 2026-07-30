@@ -14,18 +14,19 @@ import {
 
 function normalizeMouse(value: MouseInteraction | undefined): MouseInteraction | undefined {
   if (!value) return undefined;
+  // Pass values through unchanged so AJV sees the real types (no Boolean() coercion).
   return {
-    ...(value.click === undefined ? {} : { click: Boolean(value.click) }),
-    ...(value.scroll === undefined ? {} : { scroll: Boolean(value.scroll) }),
-    ...(value.drag === undefined ? {} : { drag: Boolean(value.drag) }),
-    ...(value.hover === undefined ? {} : { hover: Boolean(value.hover) }),
+    ...(value.click === undefined ? {} : { click: value.click }),
+    ...(value.scroll === undefined ? {} : { scroll: value.scroll }),
+    ...(value.drag === undefined ? {} : { drag: value.drag }),
+    ...(value.hover === undefined ? {} : { hover: value.hover }),
   };
 }
 
 function normalizeInteraction(value: InteractionPrefs | undefined): InteractionPrefs | undefined {
   if (!value) return undefined;
   return {
-    ...(value.keyboard === undefined ? {} : { keyboard: value.keyboard.map(String) }),
+    ...(value.keyboard === undefined ? {} : { keyboard: value.keyboard }),
     ...(value.mouse === undefined ? {} : { mouse: normalizeMouse(value.mouse) }),
   };
 }
@@ -103,7 +104,7 @@ export class DisplayPrefsBuilder {
 
   userOverride(key: string, allowed: boolean) {
     if (!this.display.userOverrides) this.display.userOverrides = {};
-    this.display.userOverrides[String(key)] = Boolean(allowed);
+    this.display.userOverrides[String(key)] = allowed;
     return this;
   }
 
