@@ -297,9 +297,12 @@ test('PlaylistItemWithPlaylistsExtension_OK_and_displayAt', () => {
       Buffer.from('{"source":"https://example.com/a","displayAt":"2026-07-21T00:00:00"}')
     )
   );
-  assert.throws(() => PlaylistItemWithPlaylistsExtension(Buffer.from('{}')), err => {
-    return err instanceof Error && err.cause === ErrValidation;
-  });
+  assert.throws(
+    () => PlaylistItemWithPlaylistsExtension(Buffer.from('{}')),
+    err => {
+      return err instanceof Error && err.cause === ErrValidation;
+    }
+  );
   assert.throws(
     () =>
       PlaylistItemWithPlaylistsExtension(
