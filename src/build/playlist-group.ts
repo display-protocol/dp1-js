@@ -53,11 +53,14 @@ export class PlaylistGroupBuilder {
 
   /** Build an unsigned playlist-group document and schema-validate it. */
   build(): PlaylistGroup {
+    if (this.doc.id === undefined) this.doc.id = generateId();
+    if (this.doc.created === undefined) this.doc.created = nowIso();
+
     const out: PlaylistGroup = {
-      id: this.doc.id ?? generateId(),
+      id: this.doc.id,
       title: String(this.doc.title ?? ''),
       playlists: this.doc.playlists ?? [],
-      created: this.doc.created ?? nowIso(),
+      created: this.doc.created,
       ...(this.doc.slug === undefined ? {} : { slug: this.doc.slug }),
       ...(this.doc.curator === undefined ? {} : { curator: this.doc.curator }),
       ...(this.doc.summary === undefined ? {} : { summary: this.doc.summary }),

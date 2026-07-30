@@ -43,10 +43,13 @@ export class RefManifestBuilder {
 
   /** Build a ref-manifest document and schema-validate it (no signatures in schema). */
   build(): RefManifest {
+    if (this.doc.id === undefined) this.doc.id = generateId();
+    if (this.doc.created === undefined) this.doc.created = nowIso();
+
     const out: RefManifest = {
       refVersion: String(this.doc.refVersion ?? '0.1.0') as RefManifest['refVersion'],
-      id: this.doc.id ?? generateId(),
-      created: this.doc.created ?? nowIso(),
+      id: this.doc.id,
+      created: this.doc.created,
       locale: String(this.doc.locale ?? 'en'),
       ...(this.doc.metadata === undefined ? {} : { metadata: this.doc.metadata }),
       ...(this.doc.controls === undefined ? {} : { controls: this.doc.controls }),

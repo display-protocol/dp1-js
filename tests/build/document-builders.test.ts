@@ -2,6 +2,7 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {
   ChannelBuilder,
+  DisplayControlsBuilder,
   DynamicQueryBuilder,
   EntityBuilder,
   NoteBuilder,
@@ -10,7 +11,6 @@ import {
   PlaylistItemBuilder,
   RefManifestBuilder,
   ResponseMappingBuilder,
-  DisplayPrefsBuilder,
 } from '../../src/build/index.js';
 import { ErrValidation } from '../../src/errors.js';
 
@@ -34,19 +34,53 @@ test('PlaylistItemBuilder accepts extension note and displayAt', () => {
   assert.equal(item.displayAt, '2026-07-21T00:00:00Z');
 });
 
+test('PlaylistItemBuilder rejects invalid displayAt', () => {
+  assert.throws(
+    () =>
+      new PlaylistItemBuilder()
+        .source('https://example.com/a.html')
+        .displayAt('2026-07-21')
+        .build(),
+    isValidationError
+  );
+});
+
 test('PlaylistBuilder builds unsigned core playlist', () => {
-  const playlist = new PlaylistBuilder()
+  const builder = new PlaylistBuilder()
     .title('Show')
-    .addItem(new PlaylistItemBuilder().source('https://example.com/a.html'))
-    .build();
+    .addItem(new PlaylistItemBuilder().source('https://example.com/a.html'));
+  const playlist = builder.build();
   assert.equal(playlist.title, 'Show');
   assert.equal(playlist.dpVersion, '1.1.0');
   assert.equal(playlist.items.length, 1);
   assert.equal(playlist.signatures, undefined);
+  assert.equal(playlist.signature, undefined);
   assert.match(playlist.id ?? '', /^[0-9a-f-]{36}$/i);
+  assert.equal(builder.build().id, playlist.id);
+  assert.equal(builder.build().created, playlist.created);
 });
 
-test('PlaylistBuilder uses extension schema for summary and empty items+dynamicQuery', () => {
+test('PlaylistBuilder rejects missing title', () => {
+  assert.throws(
+    () =>
+      new PlaylistBuilder()
+        .addItem(new PlaylistItemBuilder().source('https://example.com/a.html'))
+        .build(),
+    isValidationError
+  );
+});
+
+test('PlaylistBuilder uses extension schema for item note and summary', () => {
+  const withItemNote = new PlaylistBuilder()
+    .title('Show')
+    .addItem(
+      new PlaylistItemBuilder()
+        .source('https://example.com/a.html')
+        .note(new NoteBuilder().text('break'))
+    )
+    .build();
+  assert.equal(withItemNote.items[0]?.note?.text, 'break');
+
   const withSummary = new PlaylistBuilder()
     .title('Show')
     .summary('Curated works')
@@ -77,8 +111,13 @@ test('PlaylistGroupBuilder builds unsigned group', () => {
     .build();
   assert.equal(group.title, 'Exhibition');
   assert.equal(group.playlists.length, 1);
+  assert.equal(group.signatures, undefined);
   assert.throws(
     () => new PlaylistGroupBuilder().title('x').playlists([]).build(),
+    isValidationError
+  );
+  assert.throws(
+    () => new PlaylistGroupBuilder().addPlaylist('https://example.com/p.json').build(),
     isValidationError
   );
 });
@@ -92,8 +131,17 @@ test('ChannelBuilder builds unsigned channel', () => {
     .build();
   assert.equal(channel.slug, 'main-feed');
   assert.equal(channel.version, '1.0.0');
+  assert.equal(channel.signatures, undefined);
   assert.throws(
     () => new ChannelBuilder().slug('Bad Slug').title('Main').addPlaylist('https://p').build(),
+    isValidationError
+  );
+  assert.throws(
+    () => new ChannelBuilder().title('Main').addPlaylist('https://example.com/p.json').build(),
+    isValidationError
+  );
+  assert.throws(
+    () => new ChannelBuilder().slug('main-feed').title('Main').playlists([]).build(),
     isValidationError
   );
 });
@@ -101,7 +149,7 @@ test('ChannelBuilder builds unsigned channel', () => {
 test('RefManifestBuilder builds validated manifest', () => {
   const manifest = new RefManifestBuilder()
     .metadata({ title: 'Work' })
-    .controls({ display: new DisplayPrefsBuilder().scaling('fit').build() })
+    .controls({ display: new DisplayControlsBuilder().scaling('fit').build() })
     .build();
   assert.equal(manifest.refVersion, '0.1.0');
   assert.equal(manifest.locale, 'en');

@@ -70,12 +70,15 @@ export class ChannelBuilder {
 
   /** Build an unsigned channel document and schema-validate it. */
   build(): Channel {
+    if (this.doc.id === undefined) this.doc.id = generateId();
+    if (this.doc.created === undefined) this.doc.created = nowIso();
+
     const out: Channel = {
-      id: this.doc.id ?? generateId(),
+      id: this.doc.id,
       slug: String(this.doc.slug ?? ''),
       title: String(this.doc.title ?? ''),
       version: String(this.doc.version ?? '1.0.0') as Channel['version'],
-      created: this.doc.created ?? nowIso(),
+      created: this.doc.created,
       playlists: this.doc.playlists ?? [],
       ...(this.doc.curators === undefined ? {} : { curators: this.doc.curators }),
       ...(this.doc.publisher === undefined ? {} : { publisher: this.doc.publisher }),

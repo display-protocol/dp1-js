@@ -41,7 +41,7 @@ const playlist = new PlaylistBuilder()
   .build();
 ```
 
-`build()` schema-validates an unsigned document (`requireSignatures: false`). Document builders also cover playlist groups, channels, and ref manifests.
+`build()` schema-validates an unsigned document (`requireSignatures: false`). Required fields still must be set — omitting `title` / channel `slug` fails AJV. When omitted, document builders generate stable `id` and `created` on first `build()` (persisted on the builder). Document builders also cover playlist groups, channels, and ref manifests.
 
 `format: uri` follows AJV/`ajv-formats` (absolute URIs, including non-`http(s)` schemes). Runtime fetch policies (for example dynamicQuery) may still reject non-HTTP endpoints.
 
@@ -176,8 +176,8 @@ Timezone rules (Playlist Extension §3.5.2):
 - `parseDP1Playlist(json)` returns a `{ playlist, error }` result for already-parsed JSON input (shape-only; not full schema).
 - `ValidatePlaylist(data, options?)` runs AJV against the core playlist schema. `requireSignatures` defaults to `true`; set `false` for unsigned drafts. Accepts `Buffer`, JSON string, or a parsed object.
 - `ValidatePlaylistGroup`, `ValidateChannel`, and `ValidatePlaylistWithPlaylistsExtension` use the same `requireSignatures` option.
-- Leaf helpers such as `ValidateNote`, `ValidateEntity`, `ValidateDisplayPrefs`, and `ValidateProvenanceBlock` run AJV against the matching schema `$defs` (builders use these on `build()`).
-- Leaf builders (`NoteBuilder`, `DisplayPrefsBuilder`, …) and document builders (`PlaylistBuilder`, `PlaylistGroupBuilder`, `ChannelBuilder`, `RefManifestBuilder`, `PlaylistItemBuilder`) are exported from the package root.
+- Leaf helpers such as `ValidateNote`, `ValidateEntity`, `ValidateDisplayPrefs`, `ValidateProvenanceBlock`, and `ValidateRefManifest` run AJV against the matching schema / `$defs` (builders use these on `build()`).
+- Leaf builders (`NoteBuilder`, `DisplayPrefsBuilder`, …) and document builders (`PlaylistBuilder`, `PlaylistGroupBuilder`, `ChannelBuilder`, `RefManifestBuilder`, `PlaylistItemBuilder`) are exported from the package root. Builder `Playlist`/`PlaylistItem` draft shapes stay internal to avoid colliding with the looser parse types exported as `Playlist` / `PlaylistItem`.
 - `ParseAndValidatePlaylist(data)` and `ParseAndValidateChannel(data)` accept raw JSON as `Buffer` or string and require signatures (multi-sig or legacy).
 - `signDP1Playlist(raw, privateKey)` returns a legacy `ed25519:<hex>` signature string for v1.0.x playlists.
 - `verifyPlaylistSignature(raw, signature, publicKey)` throws if verification fails.

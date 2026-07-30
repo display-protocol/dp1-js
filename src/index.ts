@@ -47,6 +47,7 @@ export {
   PlaylistItem as ValidatePlaylistItem,
   PlaylistItemWithPlaylistsExtension as ValidatePlaylistItemWithPlaylistsExtension,
   PlaylistsExtensionFragment as ValidatePlaylistsExtensionFragment,
+  RefManifest as ValidateRefManifest,
   Note as ValidateNote,
   Entity as ValidateEntity,
   DynamicQuery as ValidateDynamicQuery,

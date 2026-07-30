@@ -143,13 +143,16 @@ export class PlaylistBuilder {
    * (or when `items` is empty, which requires `dynamicQuery`).
    */
   build(): Playlist {
+    if (this.doc.id === undefined) this.doc.id = generateId();
+    if (this.doc.created === undefined) this.doc.created = nowIso();
+
     const out: Playlist = {
       dpVersion: String(this.doc.dpVersion ?? '1.1.0') as Playlist['dpVersion'],
       title: String(this.doc.title ?? ''),
       items: this.doc.items,
-      id: this.doc.id ?? generateId(),
+      id: this.doc.id,
       ...(this.doc.slug === undefined ? {} : { slug: this.doc.slug }),
-      created: this.doc.created ?? nowIso(),
+      created: this.doc.created,
       ...(this.doc.defaults === undefined ? {} : { defaults: this.doc.defaults }),
       ...(this.doc.note === undefined ? {} : { note: this.doc.note }),
       ...(this.doc.curators === undefined ? {} : { curators: this.doc.curators }),
