@@ -15,6 +15,15 @@ afterEach(() => {
   else process.env.TZ = originalTz;
 });
 
+function dailyPlaylist(items: Playlist['items']): Playlist {
+  return {
+    dpVersion: '1.1.0',
+    title: 'Daily',
+    items,
+    signatures: [],
+  };
+}
+
 test('parseDisplayAt_with_timezone_Z', () => {
   const parsed = parseDisplayAt('2026-07-21T00:00:00Z');
   assert.equal(parsed.toISOString(), '2026-07-21T00:00:00.000Z');
@@ -25,9 +34,12 @@ test('parseDisplayAt_with_timezone_offset', () => {
   assert.equal(parsed.toISOString(), '2026-07-21T02:00:00.000Z');
 });
 
-test('parseDisplayAt_with_compact_timezone_offset', () => {
-  const parsed = parseDisplayAt('2026-07-21T09:00:00+0700');
-  assert.equal(parsed.toISOString(), '2026-07-21T02:00:00.000Z');
+test('parseDisplayAt_rejects_compact_timezone_offset', () => {
+  assert.throws(() => parseDisplayAt('2026-07-21T09:00:00+0700'), /dp1: invalid displayAt/);
+});
+
+test('parseDisplayAt_rejects_date_only', () => {
+  assert.throws(() => parseDisplayAt('2026-07-21'), /dp1: invalid displayAt/);
 });
 
 test('parseDisplayAt_respects_DST_offsets', () => {
@@ -37,15 +49,33 @@ test('parseDisplayAt_respects_DST_offsets', () => {
   assert.equal(summer.toISOString(), '2026-07-15T16:00:00.000Z');
 });
 
+test('parseDisplayAt_preserves_fractional_seconds_in_local_time', () => {
+  const ny = parseDisplayAt('2026-07-15T12:00:00.500', 'America/New_York');
+  const utc = parseDisplayAt('2026-07-22T00:00:00.500', 'UTC');
+  assert.equal(ny.toISOString(), '2026-07-15T16:00:00.500Z');
+  assert.equal(utc.toISOString(), '2026-07-22T00:00:00.500Z');
+});
+
+test('parseDisplayAt_DST_gap_resolves_to_first_instant_after_gap', () => {
+  // 2026-03-08 America/New_York springs forward 02:00 → 03:00.
+  const resolved = parseDisplayAt('2026-03-08T02:30:00', 'America/New_York');
+  assert.equal(resolved.toISOString(), '2026-03-08T07:00:00.000Z'); // 03:00 EDT
+});
+
+test('parseDisplayAt_DST_gap_discards_fractional_seconds_at_transition', () => {
+  const resolved = parseDisplayAt('2026-03-08T02:30:00.500', 'America/New_York');
+  assert.equal(resolved.toISOString(), '2026-03-08T07:00:00.000Z');
+});
+
+test('parseDisplayAt_DST_fold_resolves_to_earlier_instant', () => {
+  // 2025-11-02 America/New_York falls back; 01:30 occurs twice.
+  const resolved = parseDisplayAt('2025-11-02T01:30:00', 'America/New_York');
+  assert.equal(resolved.toISOString(), '2025-11-02T05:30:00.000Z'); // EDT (earlier)
+});
+
 test('parseDisplayAt_without_timezone_uses_device_local', () => {
   process.env.TZ = 'UTC';
   const parsed = parseDisplayAt('2026-07-21T00:00:00');
-  assert.equal(parsed.toISOString(), '2026-07-21T00:00:00.000Z');
-});
-
-test('parseDisplayAt_date_only_uses_local_midnight', () => {
-  process.env.TZ = 'UTC';
-  const parsed = parseDisplayAt('2026-07-21');
   assert.equal(parsed.toISOString(), '2026-07-21T00:00:00.000Z');
 });
 
@@ -54,15 +84,22 @@ test('parseDisplayAt_with_explicit_localTimezone', () => {
   assert.equal(parsed.toISOString(), '2026-07-21T02:00:00.000Z');
 });
 
-function dailyPlaylist(items: Playlist['items']): Playlist {
-  return {
-    dpVersion: '1.1.0',
-    title: 'Daily',
-    schedule: { byDisplayAt: true },
-    items,
-    signatures: [],
-  };
-}
+test('parseDisplayAt_rejects_invalid_calendar_day', () => {
+  assert.throws(() => parseDisplayAt('2026-02-30T00:00:00'), /dp1: invalid displayAt/);
+  assert.throws(() => parseDisplayAt('2026-02-30T00:00:00Z'), /dp1: invalid displayAt/);
+});
+
+test('parseDisplayAt_rejects_invalid_values', () => {
+  assert.throws(() => parseDisplayAt(''), /dp1: displayAt must be a non-empty string/);
+  assert.throws(() => parseDisplayAt('not-a-date'), /dp1: invalid displayAt/);
+  assert.throws(() => parseDisplayAt('2026-07-21T00:00'), /dp1: invalid displayAt/);
+  assert.throws(() => parseDisplayAt(' 2026-07-21T00:00:00Z'), /dp1: invalid displayAt/);
+});
+
+test('parseDisplayAt_preserves_years_before_0100', () => {
+  assert.equal(parseDisplayAt('0001-01-01T00:00:00Z').toISOString(), '0001-01-01T00:00:00.000Z');
+  assert.equal(parseDisplayAt('0099-12-31T23:59:59', 'UTC').toISOString(), '0099-12-31T23:59:59.000Z');
+});
 
 test('computeActiveSet_mixed_items', () => {
   const playlist = dailyPlaylist([
@@ -95,6 +132,23 @@ test('computeActiveSet_multiple_items_same_displayAt', () => {
   );
 });
 
+test('computeActiveSet_same_instant_different_wire_strings', () => {
+  const playlist = dailyPlaylist([
+    { source: 'https://example.com/a', title: 'Work A', displayAt: '2026-07-21T00:00:00Z' },
+    {
+      source: 'https://example.com/b',
+      title: 'Work B',
+      displayAt: '2026-07-21T07:00:00+07:00',
+    },
+  ]);
+
+  const active = computeActiveSet(playlist, new Date('2026-07-21T12:00:00Z'));
+  assert.deepEqual(
+    active.map(item => item.title),
+    ['Work A', 'Work B']
+  );
+});
+
 test('computeActiveSet_all_future_items_returns_evergreen_only', () => {
   const playlist = dailyPlaylist([
     { source: 'https://example.com/intro', title: 'Intro' },
@@ -109,7 +163,7 @@ test('computeActiveSet_all_future_items_returns_evergreen_only', () => {
   );
 });
 
-test('computeActiveSet_without_byDisplayAt_returns_all_items', () => {
+test('computeActiveSet_activates_when_any_item_has_displayAt', () => {
   const playlist: Playlist = {
     dpVersion: '1.1.0',
     title: 'Plain',
@@ -121,7 +175,18 @@ test('computeActiveSet_without_byDisplayAt_returns_all_items', () => {
   };
 
   const active = computeActiveSet(playlist, new Date('2026-07-22T10:00:00Z'));
-  assert.equal(active.length, 2);
+  assert.deepEqual(active.map(item => item.source), ['https://example.com/b']);
+});
+
+test('computeActiveSet_returns_all_items_without_displayAt', () => {
+  const playlist = dailyPlaylist([
+    { source: 'https://example.com/a', title: 'Work A' },
+    { source: 'https://example.com/b', title: 'Work B' },
+  ]);
+
+  const active = computeActiveSet(playlist, new Date('2026-07-22T10:00:00Z'));
+  assert.deepEqual(active, playlist.items);
+  assert.notEqual(active, playlist.items);
 });
 
 test('nextDisplayAt_returns_smallest_future_value', () => {
@@ -145,11 +210,6 @@ test('nextDisplayAt_returns_null_when_no_future_displayAt', () => {
   assert.equal(nextDisplayAt(playlist, new Date('2026-07-22T10:00:00Z')), null);
 });
 
-test('parseDisplayAt_rejects_invalid_values', () => {
-  assert.throws(() => parseDisplayAt(''), /dp1: displayAt must be a non-empty string/);
-  assert.throws(() => parseDisplayAt('not-a-date'), /dp1: invalid displayAt/);
-});
-
 test('computeActiveSet_includes_items_at_exact_now', () => {
   const playlist = dailyPlaylist([
     { source: 'https://example.com/a', title: 'Work A', displayAt: '2026-07-22T10:00:00Z' },
@@ -163,17 +223,30 @@ test('computeActiveSet_includes_items_at_exact_now', () => {
   );
 });
 
+test('computeActiveSet_includes_fractional_local_displayAt_at_exact_now', () => {
+  const playlist = dailyPlaylist([
+    {
+      source: 'https://example.com/a',
+      title: 'Work A',
+      displayAt: '2026-07-22T00:00:00.500',
+    },
+  ]);
+
+  const active = computeActiveSet(playlist, new Date('2026-07-22T00:00:00.500Z'), 'UTC');
+  assert.deepEqual(
+    active.map(item => item.title),
+    ['Work A']
+  );
+  assert.equal(nextDisplayAt(playlist, new Date('2026-07-22T00:00:00.500Z'), 'UTC'), null);
+});
+
 test('computeActiveSet_forwards_localTimezone', () => {
   const playlist = dailyPlaylist([
     { source: 'https://example.com/a', title: 'Work A', displayAt: '2026-07-22T00:00:00' },
     { source: 'https://example.com/b', title: 'Work B', displayAt: '2026-07-23T00:00:00' },
   ]);
 
-  const active = computeActiveSet(
-    playlist,
-    new Date('2026-07-21T20:00:00Z'),
-    'Asia/Bangkok'
-  );
+  const active = computeActiveSet(playlist, new Date('2026-07-21T20:00:00Z'), 'Asia/Bangkok');
   assert.deepEqual(
     active.map(item => item.title),
     ['Work A']
@@ -190,15 +263,14 @@ test('nextDisplayAt_forwards_localTimezone', () => {
   assert.equal(next?.toISOString(), '2026-07-22T17:00:00.000Z');
 });
 
-test('PlaylistWithPlaylistsExtension_accepts_local_displayAt_formats', () => {
+test('PlaylistWithPlaylistsExtension_accepts_spec_displayAt_formats', () => {
   const payload = JSON.stringify({
     dpVersion: '1.1.0',
     title: 'Daily',
-    schedule: { byDisplayAt: true },
     items: [
-      { source: 'https://example.com/a', displayAt: '2026-07-21' },
-      { source: 'https://example.com/b', displayAt: '2026-07-22T00:00:00' },
-      { source: 'https://example.com/c', displayAt: '2026-07-23T00:00:00Z' },
+      { source: 'https://example.com/a', displayAt: '2026-07-21T00:00:00' },
+      { source: 'https://example.com/b', displayAt: '2026-07-22T00:00:00Z' },
+      { source: 'https://example.com/c', displayAt: '2026-07-23T09:00:00+07:00' },
     ],
     signatures: [
       {
@@ -214,6 +286,44 @@ test('PlaylistWithPlaylistsExtension_accepts_local_displayAt_formats', () => {
   });
 
   assert.doesNotThrow(() => PlaylistWithPlaylistsExtension(Buffer.from(payload)));
+});
+
+test('PlaylistWithPlaylistsExtension_rejects_date_only_and_compact_offset', () => {
+  const dateOnly = JSON.stringify({
+    dpVersion: '1.1.0',
+    title: 'Daily',
+    items: [{ source: 'https://example.com/a', displayAt: '2026-07-21' }],
+    signatures: [
+      {
+        alg: 'ed25519',
+        kid: 'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
+        ts: '2025-01-01T00:00:00Z',
+        payload_hash:
+          'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        role: 'curator',
+        sig: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      },
+    ],
+  });
+  const compact = JSON.stringify({
+    dpVersion: '1.1.0',
+    title: 'Daily',
+    items: [{ source: 'https://example.com/a', displayAt: '2026-07-21T00:00:00+0700' }],
+    signatures: [
+      {
+        alg: 'ed25519',
+        kid: 'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
+        ts: '2025-01-01T00:00:00Z',
+        payload_hash:
+          'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        role: 'curator',
+        sig: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      },
+    ],
+  });
+
+  assert.throws(() => PlaylistWithPlaylistsExtension(Buffer.from(dateOnly)));
+  assert.throws(() => PlaylistWithPlaylistsExtension(Buffer.from(compact)));
 });
 
 test('computeActiveSet_all_future_without_evergreen_returns_empty', () => {
@@ -251,35 +361,47 @@ test('computeActiveSet_mixed_absolute_and_local_displayAt', () => {
     { source: 'https://example.com/c', title: 'Work C', displayAt: '2026-07-23T00:00:00Z' },
   ]);
 
-  const active = computeActiveSet(
-    playlist,
-    new Date('2026-07-22T01:00:00Z'),
-    'Asia/Bangkok'
-  );
+  const active = computeActiveSet(playlist, new Date('2026-07-22T01:00:00Z'), 'Asia/Bangkok');
   assert.deepEqual(
     active.map(item => item.title),
     ['Work A', 'Work B']
   );
 });
 
-test('computeActiveSet_throws_on_malformed_displayAt', () => {
+test('computeActiveSet_skips_malformed_displayAt', () => {
   const playlist = dailyPlaylist([
-    { source: 'https://example.com/a', displayAt: 'not-a-date' },
+    { source: 'https://example.com/bad', title: 'Bad', displayAt: 'not-a-date' },
+    { source: 'https://example.com/a', title: 'Work A', displayAt: '2026-07-22T00:00:00Z' },
+    { source: 'https://example.com/intro', title: 'Intro' },
   ]);
 
-  assert.throws(
-    () => computeActiveSet(playlist, new Date('2026-07-22T10:00:00Z')),
-    /dp1: invalid displayAt/
+  const active = computeActiveSet(playlist, new Date('2026-07-22T10:00:00Z'));
+  assert.deepEqual(
+    active.map(item => item.title),
+    ['Work A', 'Intro']
   );
 });
 
-test('nextDisplayAt_throws_on_malformed_displayAt', () => {
+test('nextDisplayAt_skips_malformed_displayAt', () => {
   const playlist = dailyPlaylist([
-    { source: 'https://example.com/a', displayAt: 'not-a-date' },
+    { source: 'https://example.com/bad', displayAt: 'not-a-date' },
+    { source: 'https://example.com/a', displayAt: '2026-07-23T00:00:00Z' },
   ]);
 
-  assert.throws(
-    () => nextDisplayAt(playlist, new Date('2026-07-22T10:00:00Z')),
-    /dp1: invalid displayAt/
-  );
+  const next = nextDisplayAt(playlist, new Date('2026-07-22T10:00:00Z'));
+  assert.equal(next?.toISOString(), '2026-07-23T00:00:00.000Z');
+});
+
+test('schedule_helpers_skip_whitespace_padded_displayAt', () => {
+  const playlist = dailyPlaylist([
+    { source: 'https://example.com/padded', displayAt: ' 2026-07-22T00:00:00Z' },
+    { source: 'https://example.com/current', displayAt: '2026-07-22T00:00:00Z' },
+    { source: 'https://example.com/future', displayAt: '2026-07-23T00:00:00Z' },
+  ]);
+  const now = new Date('2026-07-22T10:00:00Z');
+
+  assert.deepEqual(computeActiveSet(playlist, now).map(item => item.source), [
+    'https://example.com/current',
+  ]);
+  assert.equal(nextDisplayAt(playlist, now)?.toISOString(), '2026-07-23T00:00:00.000Z');
 });
