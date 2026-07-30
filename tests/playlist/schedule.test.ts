@@ -1,11 +1,6 @@
 import { afterEach, test } from 'vitest';
 import assert from 'node:assert/strict';
-import {
-  computeActiveSet,
-  nextDisplayAt,
-  parseDisplayAt,
-  type Playlist,
-} from '../../src/index.js';
+import { computeActiveSet, nextDisplayAt, parseDisplayAt, type Playlist } from '../../src/index.js';
 import { PlaylistWithPlaylistsExtension } from '../../src/validate/index.js';
 
 const originalTz = process.env.TZ;
@@ -98,7 +93,10 @@ test('parseDisplayAt_rejects_invalid_values', () => {
 
 test('parseDisplayAt_preserves_years_before_0100', () => {
   assert.equal(parseDisplayAt('0001-01-01T00:00:00Z').toISOString(), '0001-01-01T00:00:00.000Z');
-  assert.equal(parseDisplayAt('0099-12-31T23:59:59', 'UTC').toISOString(), '0099-12-31T23:59:59.000Z');
+  assert.equal(
+    parseDisplayAt('0099-12-31T23:59:59', 'UTC').toISOString(),
+    '0099-12-31T23:59:59.000Z'
+  );
 });
 
 test('computeActiveSet_mixed_items', () => {
@@ -175,7 +173,10 @@ test('computeActiveSet_activates_when_any_item_has_displayAt', () => {
   };
 
   const active = computeActiveSet(playlist, new Date('2026-07-22T10:00:00Z'));
-  assert.deepEqual(active.map(item => item.source), ['https://example.com/b']);
+  assert.deepEqual(
+    active.map(item => item.source),
+    ['https://example.com/b']
+  );
 });
 
 test('computeActiveSet_returns_all_items_without_displayAt', () => {
@@ -277,8 +278,7 @@ test('PlaylistWithPlaylistsExtension_accepts_spec_displayAt_formats', () => {
         alg: 'ed25519',
         kid: 'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
         ts: '2025-01-01T00:00:00Z',
-        payload_hash:
-          'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        payload_hash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
         role: 'curator',
         sig: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
       },
@@ -298,8 +298,7 @@ test('PlaylistWithPlaylistsExtension_rejects_date_only_and_compact_offset', () =
         alg: 'ed25519',
         kid: 'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
         ts: '2025-01-01T00:00:00Z',
-        payload_hash:
-          'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        payload_hash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
         role: 'curator',
         sig: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
       },
@@ -314,8 +313,7 @@ test('PlaylistWithPlaylistsExtension_rejects_date_only_and_compact_offset', () =
         alg: 'ed25519',
         kid: 'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
         ts: '2025-01-01T00:00:00Z',
-        payload_hash:
-          'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        payload_hash: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
         role: 'curator',
         sig: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
       },
@@ -400,8 +398,9 @@ test('schedule_helpers_skip_whitespace_padded_displayAt', () => {
   ]);
   const now = new Date('2026-07-22T10:00:00Z');
 
-  assert.deepEqual(computeActiveSet(playlist, now).map(item => item.source), [
-    'https://example.com/current',
-  ]);
+  assert.deepEqual(
+    computeActiveSet(playlist, now).map(item => item.source),
+    ['https://example.com/current']
+  );
   assert.equal(nextDisplayAt(playlist, now)?.toISOString(), '2026-07-23T00:00:00.000Z');
 });

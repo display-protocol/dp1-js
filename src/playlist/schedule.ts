@@ -239,10 +239,7 @@ export function parseDisplayAt(displayAt: string, localTimezone?: string): Date 
  * - valid → `instant`
  * - invalid / unresolvable → `invalid` (not eligible, not a timer candidate)
  */
-type ItemDisplayAt =
-  | { kind: 'none' }
-  | { kind: 'instant'; ms: number }
-  | { kind: 'invalid' };
+type ItemDisplayAt = { kind: 'none' } | { kind: 'instant'; ms: number } | { kind: 'invalid' };
 
 function resolveItemDisplayAt(item: PlaylistItem, localTimezone?: string): ItemDisplayAt {
   if (typeof item.displayAt !== 'string') return { kind: 'none' };
@@ -287,11 +284,7 @@ export function computeActiveSet(
  * Smallest future resolvable `displayAt` after `now` (§3.5.4).
  * Unresolvable wire forms are ignored. Returns null when none remain.
  */
-export function nextDisplayAt(
-  playlist: Playlist,
-  now: Date,
-  localTimezone?: string
-): Date | null {
+export function nextDisplayAt(playlist: Playlist, now: Date, localTimezone?: string): Date | null {
   const nowMs = now.getTime();
   let nextMs: number | null = null;
 
