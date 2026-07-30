@@ -1,7 +1,7 @@
 import { lookup as dnsLookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { Buffer } from 'node:buffer';
-import { parsePlaylistItem } from '../validate/index.js';
+import { PlaylistItemWithPlaylistsExtension } from '../validate/index.js';
 
 export {
   parseDisplayAt,
@@ -344,7 +344,7 @@ function playlistItemsFromDynamicQueryBody(body: Buffer, dq: DynamicQueryLike) {
   for (const raw of rawItems) {
     const itemJSON = applyItemMap(raw, rm.ItemMap || rm.itemMap || {});
     try {
-      parsePlaylistItem(itemJSON);
+      PlaylistItemWithPlaylistsExtension(itemJSON);
       out.push(JSON.parse(Buffer.from(itemJSON).toString('utf8')));
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);

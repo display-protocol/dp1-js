@@ -7,6 +7,7 @@ import channel from '../schema/extensions/channels/schema.json' with { type: 'js
 import playlistsExt from '../schema/extensions/playlists/schema.json' with { type: 'json' };
 import playlistBundle from '../schema/extensions/playlists/bundles/playlist-core-v1.1.0.json' with { type: 'json' };
 import playlistWithExt from '../schema/extensions/playlists/playlist_with_extension.json' with { type: 'json' };
+import playlistItemWithExt from '../schema/extensions/playlists/playlist_item_with_extension.json' with { type: 'json' };
 import { ErrValidation } from '../errors.js';
 
 const ajv = addFormats(new Ajv2020({ strict: false, allErrors: true, allowUnionTypes: true }));
@@ -18,6 +19,7 @@ for (const schema of [
   playlistsExt,
   playlistBundle,
   playlistWithExt,
+  playlistItemWithExt,
 ]) {
   ajv.addSchema(schema);
 }
@@ -64,3 +66,6 @@ export const PlaylistsExtensionFragment = (data: Buffer | string) =>
 export const PlaylistItem = (data: Buffer | string) =>
   validate(`${playlist.$id}#/$defs/PlaylistItem`, data);
 export const parsePlaylistItem = PlaylistItem;
+/** Core PlaylistItem + playlists-extension overlay (note / displayAt). Used by dynamicQuery. */
+export const PlaylistItemWithPlaylistsExtension = (data: Buffer | string) =>
+  validate(playlistItemWithExt.$id, data);

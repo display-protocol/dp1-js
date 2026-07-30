@@ -8,6 +8,7 @@ import {
   ChannelsExtension,
   PlaylistsExtensionFragment,
   PlaylistItem,
+  PlaylistItemWithPlaylistsExtension,
 } from '../../../src/validate/index.js';
 import { ErrValidation } from '../../../src/errors.js';
 
@@ -279,5 +280,59 @@ test('PlaylistItem_OK_and_invalid', () => {
         'message' in details[0]
       );
     }
+  );
+});
+
+test('PlaylistItemWithPlaylistsExtension_OK_and_displayAt', () => {
+  assert.doesNotThrow(() =>
+    PlaylistItemWithPlaylistsExtension(Buffer.from('{"source":"https://example.com/a"}'))
+  );
+  assert.doesNotThrow(() =>
+    PlaylistItemWithPlaylistsExtension(
+      Buffer.from('{"source":"https://example.com/a","displayAt":"2026-07-21T00:00:00Z"}')
+    )
+  );
+  assert.doesNotThrow(() =>
+    PlaylistItemWithPlaylistsExtension(
+      Buffer.from('{"source":"https://example.com/a","displayAt":"2026-07-21T00:00:00"}')
+    )
+  );
+  assert.throws(() => PlaylistItemWithPlaylistsExtension(Buffer.from('{}')), err => {
+    return err instanceof Error && err.cause === ErrValidation;
+  });
+  assert.throws(
+    () =>
+      PlaylistItemWithPlaylistsExtension(
+        Buffer.from('{"source":"https://example.com/a","displayAt":null}')
+      ),
+    err => err instanceof Error && err.cause === ErrValidation
+  );
+  assert.throws(
+    () =>
+      PlaylistItemWithPlaylistsExtension(
+        Buffer.from('{"source":"https://example.com/a","displayAt":""}')
+      ),
+    err => err instanceof Error && err.cause === ErrValidation
+  );
+  assert.throws(
+    () =>
+      PlaylistItemWithPlaylistsExtension(
+        Buffer.from('{"source":"https://example.com/a","displayAt":"not-a-date"}')
+      ),
+    err => err instanceof Error && err.cause === ErrValidation
+  );
+  assert.throws(
+    () =>
+      PlaylistItemWithPlaylistsExtension(
+        Buffer.from('{"source":"https://example.com/a","displayAt":"2026-07-21"}')
+      ),
+    err => err instanceof Error && err.cause === ErrValidation
+  );
+  assert.throws(
+    () =>
+      PlaylistItemWithPlaylistsExtension(
+        Buffer.from('{"source":"https://example.com/a","displayAt":123}')
+      ),
+    err => err instanceof Error && err.cause === ErrValidation
   );
 });
