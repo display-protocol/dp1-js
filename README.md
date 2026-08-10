@@ -17,7 +17,7 @@ It is designed for Node.js 22+ and ships dual ESM/CJS entrypoints through the pa
 - Schema-validate unsigned drafts via `Validate*` helpers (`requireSignatures: false`).
 - Build DP-1 documents and leaf structures with fluent builders backed by AJV schemas.
 - Canonicalize signing payloads using RFC 8785-style JSON canonicalization.
-- Compute and verify payload hashes and Ed25519 signatures.
+- Compute and verify payload hashes and signatures (Ed25519, and EIP-191 wallet signatures).
 - Merge display preferences with DP-1 resolution order.
 - Resolve playlist `displayAt` schedules into an active playback set and next timer.
 
@@ -181,6 +181,7 @@ Timezone rules (Playlist Extension §3.5.2):
 - `ParseAndValidatePlaylist(data)` and `ParseAndValidateChannel(data)` accept raw JSON as `Buffer` or string and require signatures (multi-sig or legacy).
 - `signDP1Playlist(raw, privateKey)` returns a legacy `ed25519:<hex>` signature string for v1.0.x playlists.
 - `verifyPlaylistSignature(raw, signature, publicKey)` throws if verification fails.
+- `SignMultiEIP191(raw, privateKey, chainID, role, ts)` signs with `personal_sign` semantics and emits the Ethereum-standard 65-byte `r || s || v` signature (`v` = 27/28), base64url-encoded, with a `did:pkh:eip155:<chainID>:<address>` `kid`. Verification accepts `v` of either 27/28 (wallets) or 0/1 (`dp1-go`), so signatures interoperate with wallets and the Go reference in both directions.
 - `ParseDPVersion(version)` is available for version parsing and major-version checks.
 - `DisplayForItem(def, ref, item)` merges display preferences using the same field-level overlay order as `dp1-go`.
 - `parseDisplayAt(displayAt, localTimezone?)` parses item release times with the timezone rules above; throws on malformed input.

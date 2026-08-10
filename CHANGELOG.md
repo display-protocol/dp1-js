@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+### Fixed
+
+- `eip191` verification now parses the Ethereum-standard `r(32) || s(32) || v(1)` signature layout (with `v` normalized from 27/28 to 0/1) instead of noble's recovery-first `recovery || r || s` format. Signatures produced by wallets (`personal_sign` / `eth_sign`) and by `dp1-go` previously failed with `invalid recovery id`, so every wallet-signed document verified as invalid.
+
+### Changed (breaking: eip191 signature wire format)
+
+- `NewEthereumSigner` / `SignMultiEIP191` now emit the Ethereum-standard `r || s || v` layout instead of noble's `recovery || r || s`. That layout is what both wallets and `dp1-go` use; the emitted recovery-id convention is the wallet one, `v` = 27/28 (`dp1-go` emits 0/1, and its verifier normalizes any `v` ≥ 27, so it accepts ours). The previous output was only ever verifiable by dp1-js itself, so the incompatibility runs both ways: eip191 signatures produced by dp1-js ≤ 2.1.0 no longer verify and need re-signing, and signatures produced by this version are rejected by dp1-js ≤ 2.1.0. Pin consistent versions across producers and verifiers. Verification accepts `v` of 0/1 or 27/28, so `dp1-go`-produced signatures are unaffected in either direction.
+
 ## 2.1.0 — 2026-07-30
 
 ### Added

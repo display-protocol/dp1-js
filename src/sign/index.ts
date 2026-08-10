@@ -171,9 +171,16 @@ class Eip191Verifier {
     const msg = keccak_256(
       Buffer.concat([Buffer.from('\x19Ethereum Signed Message:\n32'), Buffer.from(digest)])
     );
-    const sig = Uint8Array.from(sigBytes);
-    const pub = secp256k1.recoverPublicKey(sig, msg, { prehash: false });
-    const recoveredPub = secp256k1.Point.fromBytes(pub).toBytes(false);
+    // Wallets (personal_sign / eth_sign, e.g. MetaMask) and dp1-go encode signatures
+    // as the Ethereum-standard `r(32) || s(32) || v(1)`; noble's `recoverPublicKey`
+    // helper instead expects its own "recovered" layout with the recovery byte first,
+    // so parse the standard layout explicitly. Wallets set v = 27/28 and dp1-go sets
+    // 0/1; ids 2/3 stay in range since noble and go-ethereum both accept them.
+    const recovery = sigBytes[64] >= 27 ? sigBytes[64] - 27 : sigBytes[64];
+    const sig = secp256k1.Signature.fromBytes(sigBytes.subarray(0, 64), 'compact').addRecoveryBit(
+      recovery
+    );
+    const recoveredPub = sig.recoverPublicKey(msg).toBytes(false);
     const recovered = `0x${bytesToHex(keccak_256(recoveredPub.subarray(1)).subarray(-20))}`;
     if (recovered.toLowerCase() !== addr.toLowerCase()) throw ErrSigInvalid;
   }
@@ -205,10 +212,17 @@ export function NewEthereumSigner(privateKey: Uint8Array | Buffer | string, chai
       const msg = keccak_256(
         Buffer.concat([Buffer.from('\x19Ethereum Signed Message:\n32'), Buffer.from(digest)])
       );
-      const sig = secp256k1.sign(msg, privateKey as Parameters<typeof secp256k1.sign>[1], {
-        format: 'recovered',
-        prehash: false,
-      });
+      const recoveredFormat = secp256k1.sign(
+        msg,
+        privateKey as Parameters<typeof secp256k1.sign>[1],
+        { format: 'recovered', prehash: false }
+      );
+      // noble packs `recovery || r || s`. Re-pack into the Ethereum-standard wire
+      // format `r || s || v` (v = recovery id + 27) so signatures are interoperable
+      // with wallets (MetaMask personal_sign / eth_sign) and dp1-go.
+      const sig = new Uint8Array(65);
+      sig.set(recoveredFormat.subarray(1), 0);
+      sig[64] = recoveredFormat[0] + 27;
       const pub = secp256k1.getPublicKey(
         privateKey as Parameters<typeof secp256k1.getPublicKey>[0],
         false
