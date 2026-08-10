@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+### Changed
+
+- `EthereumAddressToDIDPKH` now emits the address in EIP-55 mixed-case checksum form instead of all-lowercase, matching `dp1-go`. Both implementations now produce byte-identical `did:pkh` `kid` strings for the same key, so a consumer comparing a signature's `kid` against a stored identifier (for example `curators[].key`) no longer has to normalize casing first. `EthereumAddressFromDIDPKH` returns the checksummed form regardless of input casing.
+- `EthereumAddressFromDIDPKH` rejects a mixed-case address whose EIP-55 checksum does not validate, rather than trusting it. All-lowercase addresses remain accepted, as in `dp1-go`. `EthereumAddressToDIDPKH` also rejects a non-positive `chainID`.
+- Signature verification is unaffected: recovered addresses were already compared case-insensitively, in both this library and `dp1-go`.
+
 ## 2.2.0 — 2026-08-10
 
 ### Fixed
