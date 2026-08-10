@@ -97,5 +97,27 @@ test('EthereumVerifierRejectsOutOfRangeRecoveryId', async () => {
   // rather than silently recovering the wrong key. Matches dp1-go.
   const bytes = Buffer.from(sig.sig, 'base64url');
   bytes[64] = 35;
-  assert.throws(() => VerifyMultiSignature(raw, { ...sig, sig: bytes.toString('base64url') }));
+  assert.throws(
+    () => VerifyMultiSignature(raw, { ...sig, sig: bytes.toString('base64url') }),
+    /invalid recovery id/
+  );
+});
+
+// Pins the parse direction: the pre-2.2 layout must NOT verify. Without this the
+// verifier could regress to noble's `recovery || r || s` and every test above
+// would still pass, since signer and verifier would agree with each other again.
+test('EthereumVerifierRejectsLegacyNobleLayout', async () => {
+  const secretKey = secp256k1.utils.randomSecretKey();
+  const raw = Buffer.from(
+    '{"dpVersion":"1.1.0","title":"Legacy layout","items":[{"source":"https://example.com"}]}'
+  );
+  const sig = await SignMultiEIP191(raw, secretKey, 1, 'curator', '2026-04-13T10:00:00Z');
+
+  // Re-pack r || s || v back into the noble-specific recovery || r || s layout.
+  const std = Buffer.from(sig.sig, 'base64url');
+  const legacy = Buffer.alloc(65);
+  legacy[0] = std[64] - 27;
+  std.copy(legacy, 1, 0, 64);
+
+  assert.throws(() => VerifyMultiSignature(raw, { ...sig, sig: legacy.toString('base64url') }));
 });
