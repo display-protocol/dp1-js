@@ -4,11 +4,11 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
-### Changed
+### Changed (breaking: `did:pkh` address casing)
 
-- `EthereumAddressToDIDPKH` now emits the address in EIP-55 mixed-case checksum form instead of all-lowercase, matching `dp1-go`. Both implementations now produce byte-identical `did:pkh` `kid` strings for the same key, so a consumer comparing a signature's `kid` against a stored identifier (for example `curators[].key`) no longer has to normalize casing first. `EthereumAddressFromDIDPKH` returns the checksummed form regardless of input casing.
-- `EthereumAddressFromDIDPKH` rejects a mixed-case address whose EIP-55 checksum does not validate, rather than trusting it. All-lowercase addresses remain accepted, as in `dp1-go`. `EthereumAddressToDIDPKH` also rejects a non-positive `chainID`.
-- Signature verification is unaffected: recovered addresses were already compared case-insensitively, in both this library and `dp1-go`.
+- `EthereumAddressToDIDPKH` now emits the address in EIP-55 mixed-case checksum form instead of all-lowercase, matching `dp1-go`. Both implementations now produce byte-identical `did:pkh` `kid` strings for the same key, so a consumer comparing a signature's `kid` against a stored identifier (for example `curators[].key`) no longer has to normalize casing first. `EthereumAddressFromDIDPKH` returns the checksummed form regardless of input casing. A consumer that stored a lowercase `kid` emitted by dp1-js ≤ 2.2.0 and compares it by exact string match will need to re-normalize, most simply by round-tripping the stored value through `EthereumAddressFromDIDPKH`.
+- `EthereumAddressFromDIDPKH` rejects a mixed-case address whose EIP-55 checksum does not validate, rather than trusting it. All-lowercase addresses remain accepted. This mirrors `dp1-go`, which applies the same rule after normalizing (`sign/didpkh.go`); the accept/reject decision now agrees with the Go implementation on every input casing. `EthereumAddressToDIDPKH` also rejects a non-positive `chainID`.
+- Signature verification changes only for identifiers that were already malformed. Recovered addresses are still compared case-insensitively, so every signature either library has ever emitted verifies exactly as before. What is new is that `Eip191Verifier` parses the `kid` through `EthereumAddressFromDIDPKH` first, so a `kid` carrying a mixed-case address that fails EIP-55 is now rejected before recovery instead of verifying. `dp1-go` rejects that same `kid` on its verification path, so this closes a gap rather than opening one.
 
 ## 2.2.0 — 2026-08-10
 
