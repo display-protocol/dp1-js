@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+## 2.2.0 — 2026-08-10
+
 ### Fixed
 
 - `eip191` verification now parses the Ethereum-standard `r(32) || s(32) || v(1)` signature layout (with `v` normalized from 27/28 to 0/1) instead of noble's recovery-first `recovery || r || s` format. Signatures produced by wallets (`personal_sign` / `eth_sign`) and by `dp1-go` previously failed with `invalid recovery id`, so every wallet-signed document verified as invalid.
