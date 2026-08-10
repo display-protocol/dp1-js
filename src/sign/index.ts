@@ -176,21 +176,14 @@ class Eip191Verifier {
     // implementations already use 0/1). noble's `recoverPublicKey` helper instead
     // expects its own "recovered" wire format (recovery byte first), so parse the
     // standard layout explicitly via `Signature` and normalize v before recovery.
-    let recovery = sigBytes[64];
-    if (recovery >= 27) recovery -= 27;
-    if (recovery !== 0 && recovery !== 1)
-      throw new Error(`${ErrSigInvalid.message}: invalid recovery id ${sigBytes[64]}`);
-    let recoveredPub: Uint8Array;
-    try {
-      const sig = secp256k1.Signature.fromBytes(sigBytes.subarray(0, 64), 'compact').addRecoveryBit(
-        recovery
-      );
-      recoveredPub = sig.recoverPublicKey(msg).toBytes(false);
-    } catch (err) {
-      // Malformed r/s (out of range, point at infinity, …) is an invalid signature,
-      // not an internal fault: keep the ErrSigInvalid prefix callers switch on.
-      throw new Error(`${ErrSigInvalid.message}: ${(err as Error).message}`);
-    }
+    // Normalize the Ethereum convention v = 27/28 down to the raw 0/1 recovery id
+    // (dp1-go signatures already use 0/1). Ids 2/3 stay in range as noble and
+    // go-ethereum both accept them; noble validates the final value.
+    const recovery = sigBytes[64] >= 27 ? sigBytes[64] - 27 : sigBytes[64];
+    const sig = secp256k1.Signature.fromBytes(sigBytes.subarray(0, 64), 'compact').addRecoveryBit(
+      recovery
+    );
+    const recoveredPub = sig.recoverPublicKey(msg).toBytes(false);
     const recovered = `0x${bytesToHex(keccak_256(recoveredPub.subarray(1)).subarray(-20))}`;
     if (recovered.toLowerCase() !== addr.toLowerCase()) throw ErrSigInvalid;
   }
