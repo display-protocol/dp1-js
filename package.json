@@ -1,6 +1,6 @@
 {
   "name": "dp1-js",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Node.js SDK for the DP-1 protocol, ported from dp1-go with a TypeScript stack.",
   "license": "MPL-2.0",
   "repository": {
