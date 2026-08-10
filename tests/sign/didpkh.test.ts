@@ -63,3 +63,12 @@ test('EthereumAddressToDIDPKHRejectsInvalidChainID', () => {
   assert.throws(() => EthereumAddressToDIDPKH(addr, 0), /positive integer/);
   assert.throws(() => EthereumAddressToDIDPKH(addr, -1), /positive integer/);
 });
+
+// The builder can no longer produce a non-positive chain ID, so the parser's own
+// guard is only reachable from an identifier that arrived from outside. Cover it
+// directly; the address is valid EIP-55 so only the chain ID can be what fires.
+test('EthereumAddressFromDIDPKHRejectsInvalidChainID', () => {
+  const addr = '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed';
+  assert.throws(() => EthereumAddressFromDIDPKH(`did:pkh:eip155:0:${addr}`), /invalid did:pkh/);
+  assert.throws(() => EthereumAddressFromDIDPKH(`did:pkh:eip155:-1:${addr}`), /invalid did:pkh/);
+});
