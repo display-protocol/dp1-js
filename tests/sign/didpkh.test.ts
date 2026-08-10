@@ -57,12 +57,26 @@ test('EthereumAddressFromDIDPKHRejectsBadChecksum', () => {
   const bad = '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAeD';
   assert.throws(() => EthereumAddressFromDIDPKH(`did:pkh:eip155:1:${bad}`), /checksum mismatch/);
 
-  // All-uppercase is the case that reads like a casing preference but is not one:
-  // ethers accepts it (it only enforces the checksum on strings that mix cases),
-  // dp1-go rejects it, and this library follows dp1-go. It parsed and verified
-  // before this change, so it is the one input class that silently starts failing.
+  // Uppercasing a mixed-case address is the case that reads like a casing
+  // preference but is not one: ethers accepts it (it enforces the checksum only
+  // on strings that mix cases), dp1-go rejects it, and this library follows
+  // dp1-go. It parsed and verified before this change.
   const caps = '0x5AAEB6053F3E94C9B9A09F33669435E7EF1BEAED';
   assert.throws(() => EthereumAddressFromDIDPKH(`did:pkh:eip155:1:${caps}`), /checksum mismatch/);
+});
+
+// The distinction the rule above turns on: "all-uppercase" is not itself the
+// rejected thing. These are EIP-55's own "All caps" vectors — every hex letter
+// hashes above the threshold, so uppercase *is* their checksummed form. Rejecting
+// them would be a real regression, so pin them separately from the mangle above.
+test('EthereumAddressFromDIDPKHAcceptsAllCapsWhenThatIsTheChecksum', () => {
+  for (const addr of [
+    '0x52908400098527886E0F7030069857D2E4169EE7',
+    '0x8617E340B3D01FA5F11F306F4090FD50E238070D',
+  ]) {
+    assert.equal(EthereumAddressFromDIDPKH(`did:pkh:eip155:1:${addr}`)[0], addr);
+    assert.equal(EthereumAddressToDIDPKH(addr, 1), `did:pkh:eip155:1:${addr}`);
+  }
 });
 
 test('EthereumAddressToDIDPKHRejectsInvalidChainID', () => {
