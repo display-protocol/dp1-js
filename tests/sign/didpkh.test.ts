@@ -62,6 +62,19 @@ test('EthereumAddressToDIDPKHRejectsInvalidChainID', () => {
   const addr = '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed';
   assert.throws(() => EthereumAddressToDIDPKH(addr, 0), /positive integer/);
   assert.throws(() => EthereumAddressToDIDPKH(addr, -1), /positive integer/);
+  // A fractional chain ID would otherwise reach the template literal and build a
+  // `did:pkh:eip155:1.5:...` that this library's own parser then rejects.
+  assert.throws(() => EthereumAddressToDIDPKH(addr, 1.5), /positive integer/);
+  assert.throws(() => EthereumAddressToDIDPKH(addr, NaN), /positive integer/);
+});
+
+// The length check was widened to a hex check: 40 non-hex characters used to slip
+// through and reach the keccak hashing as garbage.
+test('EthereumAddressToDIDPKHRejectsNonHexAddress', () => {
+  assert.throws(
+    () => EthereumAddressToDIDPKH(`0x${'z'.repeat(40)}`, 1),
+    /invalid ethereum address/
+  );
 });
 
 // The builder can no longer produce a non-positive chain ID, so the parser's own
