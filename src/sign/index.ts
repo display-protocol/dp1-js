@@ -180,10 +180,17 @@ class Eip191Verifier {
     if (recovery >= 27) recovery -= 27;
     if (recovery !== 0 && recovery !== 1)
       throw new Error(`${ErrSigInvalid.message}: invalid recovery id ${sigBytes[64]}`);
-    const sig = secp256k1.Signature.fromBytes(sigBytes.subarray(0, 64), 'compact').addRecoveryBit(
-      recovery
-    );
-    const recoveredPub = sig.recoverPublicKey(msg).toBytes(false);
+    let recoveredPub: Uint8Array;
+    try {
+      const sig = secp256k1.Signature.fromBytes(sigBytes.subarray(0, 64), 'compact').addRecoveryBit(
+        recovery
+      );
+      recoveredPub = sig.recoverPublicKey(msg).toBytes(false);
+    } catch (err) {
+      // Malformed r/s (out of range, point at infinity, …) is an invalid signature,
+      // not an internal fault: keep the ErrSigInvalid prefix callers switch on.
+      throw new Error(`${ErrSigInvalid.message}: ${(err as Error).message}`);
+    }
     const recovered = `0x${bytesToHex(keccak_256(recoveredPub.subarray(1)).subarray(-20))}`;
     if (recovered.toLowerCase() !== addr.toLowerCase()) throw ErrSigInvalid;
   }
