@@ -56,6 +56,13 @@ test('EthereumAddressFromDIDPKHRejectsBadChecksum', () => {
   // casing preference: reject rather than silently trusting it, as dp1-go does.
   const bad = '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAeD';
   assert.throws(() => EthereumAddressFromDIDPKH(`did:pkh:eip155:1:${bad}`), /checksum mismatch/);
+
+  // All-uppercase is the case that reads like a casing preference but is not one:
+  // ethers accepts it (it only enforces the checksum on strings that mix cases),
+  // dp1-go rejects it, and this library follows dp1-go. It parsed and verified
+  // before this change, so it is the one input class that silently starts failing.
+  const caps = '0x5AAEB6053F3E94C9B9A09F33669435E7EF1BEAED';
+  assert.throws(() => EthereumAddressFromDIDPKH(`did:pkh:eip155:1:${caps}`), /checksum mismatch/);
 });
 
 test('EthereumAddressToDIDPKHRejectsInvalidChainID', () => {
