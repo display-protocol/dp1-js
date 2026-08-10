@@ -172,13 +172,10 @@ class Eip191Verifier {
       Buffer.concat([Buffer.from('\x19Ethereum Signed Message:\n32'), Buffer.from(digest)])
     );
     // Wallets (personal_sign / eth_sign, e.g. MetaMask) and dp1-go encode signatures
-    // as the Ethereum-standard `r(32) || s(32) || v(1)`, with v = 27/28 (some
-    // implementations already use 0/1). noble's `recoverPublicKey` helper instead
-    // expects its own "recovered" wire format (recovery byte first), so parse the
-    // standard layout explicitly via `Signature` and normalize v before recovery.
-    // Normalize the Ethereum convention v = 27/28 down to the raw 0/1 recovery id
-    // (dp1-go signatures already use 0/1). Ids 2/3 stay in range as noble and
-    // go-ethereum both accept them; noble validates the final value.
+    // as the Ethereum-standard `r(32) || s(32) || v(1)`; noble's `recoverPublicKey`
+    // helper instead expects its own "recovered" layout with the recovery byte first,
+    // so parse the standard layout explicitly. Wallets set v = 27/28 and dp1-go sets
+    // 0/1; ids 2/3 stay in range since noble and go-ethereum both accept them.
     const recovery = sigBytes[64] >= 27 ? sigBytes[64] - 27 : sigBytes[64];
     const sig = secp256k1.Signature.fromBytes(sigBytes.subarray(0, 64), 'compact').addRecoveryBit(
       recovery
