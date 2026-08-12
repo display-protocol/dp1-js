@@ -34,11 +34,12 @@ export class ThumbnailBuilder {
     this.t.sha256 = value;
     return this;
   }
+  /** `w` / `h` are optional per DP-1: omitted rather than guessed when unset. */
   build(): Thumbnail {
     const out: Thumbnail = {
       uri: String(this.t.uri ?? ''),
-      w: this.t.w as number,
-      h: this.t.h as number,
+      ...(this.t.w === undefined ? {} : { w: this.t.w }),
+      ...(this.t.h === undefined ? {} : { h: this.t.h }),
       ...(this.t.sha256 === undefined ? {} : { sha256: String(this.t.sha256) }),
     };
     ValidateThumbnail(out);

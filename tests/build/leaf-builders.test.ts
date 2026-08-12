@@ -93,7 +93,7 @@ test('ValidateDynamicQuery rejects unknown profile', () => {
   );
 });
 
-test('ThumbnailBuilder enforces uri and dimensions', () => {
+test('ThumbnailBuilder enforces uri and validates dimensions when present', () => {
   assert.throws(
     () => new ThumbnailBuilder().uri('x').widthPx(0).heightPx(10).build(),
     isValidationError
@@ -101,6 +101,17 @@ test('ThumbnailBuilder enforces uri and dimensions', () => {
   assert.doesNotThrow(() =>
     new ThumbnailBuilder().uri('https://example.com/x.png').widthPx(10).heightPx(10).build()
   );
+});
+
+test('ThumbnailBuilder omits unset dimensions rather than guessing', () => {
+  const bare = new ThumbnailBuilder().uri('https://example.com/x.png').build();
+  assert.equal(bare.w, undefined);
+  assert.equal(bare.h, undefined);
+  assert.deepEqual(Object.keys(bare), ['uri']);
+
+  // One dimension alone is still valid: w and h are independently optional.
+  const widthOnly = new ThumbnailBuilder().uri('https://example.com/x.png').widthPx(320).build();
+  assert.deepEqual(Object.keys(widthOnly), ['uri', 'w']);
 });
 
 test('ReproBuilder rejects uppercase hex and validates plain frameHash', () => {

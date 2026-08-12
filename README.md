@@ -176,7 +176,8 @@ Timezone rules (Playlist Extension §3.5.2):
 - `parseDP1Playlist(json)` returns a `{ playlist, error }` result for already-parsed JSON input (shape-only; not full schema).
 - `ValidatePlaylist(data, options?)` runs AJV against the core playlist schema. `requireSignatures` defaults to `true`; set `false` for unsigned drafts. Accepts `Buffer`, JSON string, or a parsed object.
 - `ValidatePlaylistGroup`, `ValidateChannel`, and `ValidatePlaylistWithPlaylistsExtension` use the same `requireSignatures` option.
-- Leaf helpers such as `ValidateNote`, `ValidateEntity`, `ValidateDisplayPrefs`, `ValidateProvenanceBlock`, and `ValidateRefManifest` run AJV against the matching schema / `$defs` (builders use these on `build()`).
+- Leaf helpers such as `ValidateNote`, `ValidateEntity`, `ValidateDisplayPrefs`, `ValidateProvenanceBlock`, `ValidateThumbnails`, and `ValidateRefManifest` run AJV against the matching schema / `$defs` (builders use these on `build()`).
+- `PlaylistItemBuilder` carries the playlists-extension item fields: `.note()`, `.displayAt()`, `.artists()` / `.addArtist()`, and `.thumbnails()` / `.addThumbnail(key, …)`. Setting any of them validates the item against the composed core + extension schema instead of core alone.
 - Leaf builders (`NoteBuilder`, `DisplayPrefsBuilder`, …) and document builders (`PlaylistBuilder`, `PlaylistGroupBuilder`, `ChannelBuilder`, `RefManifestBuilder`, `PlaylistItemBuilder`) are exported from the package root. Builder `Playlist`/`PlaylistItem` draft shapes stay internal to avoid colliding with the looser parse types exported as `Playlist` / `PlaylistItem`.
 - `ParseAndValidatePlaylist(data)` and `ParseAndValidateChannel(data)` accept raw JSON as `Buffer` or string and require signatures (multi-sig or legacy).
 - `signDP1Playlist(raw, privateKey)` returns a legacy `ed25519:<hex>` signature string for v1.0.x playlists.
@@ -191,9 +192,13 @@ Timezone rules (Playlist Extension §3.5.2):
 
 ## Validation parity with dp1-go
 
-Embedded JSON Schema files under `src/schema/` are kept in sync with [`display-protocol/dp1-go`](https://github.com/display-protocol/dp1-go) (`internal/schema/`). Payloads that passed validation under older, looser schemas may now fail — for example invalid `license` values, provenance blocks without `type`, or ref-manifest thumbnails missing required dimensions.
+Embedded JSON Schema files under `src/schema/` are kept in sync with [`display-protocol/dp1-go`](https://github.com/display-protocol/dp1-go) (`internal/schema/`). Payloads that passed validation under older, looser schemas may now fail — for example invalid `license` values or provenance blocks without `type`.
+
+Thumbnail dimensions are the one place the schema has since been _loosened_: `w` and `h` are optional on a `Thumbnail` (only `uri` is required), so a producer holding a bare thumbnail URL omits them rather than guessing. When present they are still validated as integers ≥ 1. Every document that validated before still validates, but consumers must treat `w` / `h` as possibly absent.
 
 The item-level `displayAt` field follows the Playlist Extension v0.2.0 overlay (display-protocol/dp1 PR [#37](https://github.com/display-protocol/dp1/pull/37)); it is optional and ignored by older runtimes. `playlist.schedule` is not part of this extension.
+
+Item-level `artists` and `thumbnails` follow the same overlay (display-protocol/dp1 PR [#44](https://github.com/display-protocol/dp1/pull/44)), reusing the ref-manifest `Artist` and `Thumbnails` shapes so an item and a resolved manifest read identically. They are optional; when a manifest reached via `ref` also carries `metadata.artists` / `metadata.thumbnails`, the item-level value wins for display.
 
 See [CHANGELOG.md](./CHANGELOG.md) for breaking validation changes.
 

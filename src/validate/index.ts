@@ -183,7 +183,10 @@ export const PlaylistsExtensionFragment = (data: Buffer | string | unknown) =>
 export const PlaylistItem = (data: Buffer | string | unknown) =>
   validate(`${playlist.$id}#/$defs/PlaylistItem`, data);
 export const parsePlaylistItem = PlaylistItem;
-/** Core PlaylistItem + playlists-extension overlay (note / displayAt). Used by dynamicQuery. */
+/**
+ * Core PlaylistItem + playlists-extension overlay (note / displayAt / artists / thumbnails).
+ * Used by dynamicQuery.
+ */
 export const PlaylistItemWithPlaylistsExtension = (data: Buffer | string | unknown) =>
   validate(playlistItemWithExt.$id, data);
 
@@ -217,6 +220,9 @@ export const ReproEngineVersion = (data: Buffer | string | unknown) =>
 
 export const Thumbnail = (data: Buffer | string | unknown) =>
   validate(`${refManifest.$id}#/$defs/Thumbnail`, data);
+/** Size-keyed thumbnail collection; also the shape of item-level `thumbnails`. */
+export const Thumbnails = (data: Buffer | string | unknown) =>
+  validate(`${refManifest.$id}#/$defs/Thumbnails`, data);
 export const Artist = (data: Buffer | string | unknown) =>
   validate(`${refManifest.$id}#/$defs/Artist`, data);
 export const Metadata = (data: Buffer | string | unknown) =>

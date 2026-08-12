@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+### Added (playlists extension: item-level `artists` and `thumbnails`)
+
+- Playlist items accept optional `artists` and `thumbnails`, per the Playlist Extension §3.7 amendment ([display-protocol/dp1#44](https://github.com/display-protocol/dp1/pull/44)). Both reuse the ref-manifest vocabulary by `$ref` — `artists` is an array of `Artist` (`name` required; `id`, `url` optional) and `thumbnails` is the size-keyed `Thumbnails` collection — so an item and a resolved manifest carry identical shapes. A producer that already holds the credit line and preview URL at build time no longer needs to host a ref-manifest to express them. These are extension fields, not canonical core: they are validated by the composed overlay (`playlist_with_extension.json` / `playlist_item_with_extension.json`), and core `playlist.json` is unchanged.
+- `PlaylistItemBuilder` gains `.artists()`, `.addArtist()`, `.thumbnails()`, and `.addThumbnail(key, value)`. As with `.note()` / `.displayAt()`, setting any of them makes `build()` validate against the composed core + extension schema rather than core alone, so a malformed artist is caught at `build()` instead of at publish time. `PlaylistBuilder` likewise routes to the composed schema when any item carries these fields.
+- New `Thumbnails` type export and `ValidateThumbnails` leaf validator, mirroring the schema's new `$defs.Thumbnails`.
+
+### Changed (loosening: `Thumbnail.w` / `Thumbnail.h` optional)
+
+- `Thumbnail` now requires only `uri`; `w` and `h` are optional, matching the relaxed core ref-manifest schema in the same amendment. A producer holding a bare thumbnail URL omits the dimensions rather than guessing them. When present they are still validated as integers ≥ 1, and `sha256` is unchanged. This is a loosening only — every document that validated before still validates — but it moves in the opposite direction from the 2.1.0 tightening, so a consumer that has been reading `thumbnail.w` unguarded since then must now treat both dimensions as possibly absent. The `Thumbnail` TypeScript type reflects this (`w?: number`, `h?: number`), so `tsc` will point at the unguarded reads.
+- `ThumbnailBuilder.build()` omits `w` / `h` when they were never set, instead of emitting them as keys holding `undefined`. Callers that set both are unaffected, key order included. Callers that set neither used to get a throw — `undefined` fails the old `required` check — so they now get `{ uri }` where they previously got an error; no already-valid output changes shape, and no signed payload is affected.
+
 ### Changed (breaking: `did:pkh` address casing and `chainID` validation)
 
 - `EthereumAddressToDIDPKH` now emits the address in EIP-55 mixed-case checksum form instead of all-lowercase, matching `dp1-go`. Both implementations now produce byte-identical `did:pkh` `kid` strings for the same key, so a consumer comparing a signature's `kid` against a stored identifier (for example `curators[].key`) no longer has to normalize casing first. `EthereumAddressFromDIDPKH` returns the checksummed form for either casing it accepts. A consumer that stored a lowercase `kid` emitted by dp1-js ≤ 2.2.0 and compares it by exact string match will need to re-normalize; note that `EthereumAddressFromDIDPKH` returns `[address, chainID]` rather than a `kid`, so rebuild the identifier with `EthereumAddressToDIDPKH(...EthereumAddressFromDIDPKH(stored))`, or compare at the address level instead.

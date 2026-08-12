@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://dp1.feralfile.com/extensions/playlists/v0.2.0/playlist_item_with_extension.json",
   "title": "DP-1 PlaylistItem with playlists extension (composed)",
-  "description": "Validates a single playlist item against core PlaylistItem plus optional playlists-extension fields (note, displayAt). Used when accepting dynamicQuery items under the playlists extension.",
+  "description": "Validates a single playlist item against core PlaylistItem plus optional playlists-extension fields (note, displayAt, artists, thumbnails). Used when accepting dynamicQuery items under the playlists extension.",
   "allOf": [
     {
       "$ref": "https://dp1.feralfile.com/schemas/v1.1.0/playlist.json#/$defs/PlaylistItem"
@@ -15,6 +15,15 @@
         },
         "displayAt": {
           "$ref": "https://dp1.feralfile.com/extensions/playlists/v0.2.0/schema.json#/$defs/DisplayAt"
+        },
+        "artists": {
+          "type": "array",
+          "items": {
+            "$ref": "https://dp1.feralfile.com/schemas/v1.1.0/ref-manifest.json#/$defs/Artist"
+          }
+        },
+        "thumbnails": {
+          "$ref": "https://dp1.feralfile.com/schemas/v1.1.0/ref-manifest.json#/$defs/Thumbnails"
         }
       }
     }

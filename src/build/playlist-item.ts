@@ -1,15 +1,19 @@
 import { resolve } from './helpers.js';
 import type {
+  Artist,
   DisplayPrefs,
   LicenseMode,
   Note,
   PlaylistItem,
   ProvenanceBlock,
   ReproBlock,
+  Thumbnail,
+  Thumbnails,
 } from './types.js';
 import type { DisplayPrefsBuilder } from './display.js';
 import type { NoteBuilder } from './note.js';
 import type { ProvenanceBuilder } from './provenance.js';
+import type { ArtistBuilder, ThumbnailBuilder } from './ref-manifest-blocks.js';
 import type { ReproBuilder } from './repro.js';
 import {
   PlaylistItem as ValidatePlaylistItem,
@@ -84,6 +88,32 @@ export class PlaylistItemBuilder {
     return this;
   }
 
+  artists(values: Array<Artist | ArtistBuilder>) {
+    this.item.artists = values.map(v => resolve(v));
+    return this;
+  }
+
+  addArtist(value: Artist | ArtistBuilder) {
+    if (!this.item.artists) this.item.artists = [];
+    this.item.artists.push(resolve(value));
+    return this;
+  }
+
+  thumbnails(values: Record<string, Thumbnail | ThumbnailBuilder>) {
+    const out: Thumbnails = {};
+    for (const [key, value] of Object.entries(values)) {
+      out[key] = resolve(value);
+    }
+    this.item.thumbnails = out;
+    return this;
+  }
+
+  addThumbnail(key: string, value: Thumbnail | ThumbnailBuilder) {
+    if (!this.item.thumbnails) this.item.thumbnails = {};
+    this.item.thumbnails[key] = resolve(value);
+    return this;
+  }
+
   build(): PlaylistItem {
     const out: PlaylistItem = {
       source: String(this.item.source ?? ''),
@@ -99,9 +129,16 @@ export class PlaylistItemBuilder {
       ...(this.item.provenance === undefined ? {} : { provenance: this.item.provenance }),
       ...(this.item.note === undefined ? {} : { note: this.item.note }),
       ...(this.item.displayAt === undefined ? {} : { displayAt: this.item.displayAt }),
+      ...(this.item.artists === undefined ? {} : { artists: this.item.artists }),
+      ...(this.item.thumbnails === undefined ? {} : { thumbnails: this.item.thumbnails }),
     };
 
-    if (out.note !== undefined || out.displayAt !== undefined) {
+    if (
+      out.note !== undefined ||
+      out.displayAt !== undefined ||
+      out.artists !== undefined ||
+      out.thumbnails !== undefined
+    ) {
       ValidatePlaylistItemWithExt(out);
     } else {
       ValidatePlaylistItem(out);

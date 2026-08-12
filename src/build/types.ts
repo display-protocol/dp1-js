@@ -93,6 +93,10 @@ export interface PlaylistItem {
   note?: Note;
   /** Playlists extension overlay (release schedule). */
   displayAt?: string;
+  /** Playlists extension overlay (§3.7); same shape as ref-manifest `metadata.artists`. */
+  artists?: Artist[];
+  /** Playlists extension overlay (§3.7); same shape as ref-manifest `metadata.thumbnails`. */
+  thumbnails?: Thumbnails;
 }
 
 export interface Defaults {
@@ -184,10 +188,15 @@ export interface DynamicQuery {
 
 export interface Thumbnail {
   uri: string;
-  w: number;
-  h: number;
+  /** Intrinsic width in pixels. Optional: omitted when the producer only holds a bare URL. */
+  w?: number;
+  /** Intrinsic height in pixels. Optional: omitted when the producer only holds a bare URL. */
+  h?: number;
   sha256?: string;
 }
+
+/** Size-keyed thumbnail collection (`small`, `large`, `xlarge`, `default`, or any other key). */
+export type Thumbnails = Record<string, Thumbnail>;
 
 export interface Artist {
   name: string;
@@ -201,7 +210,7 @@ export interface Metadata {
   creditLine?: string;
   description?: string;
   tags?: string[];
-  thumbnails?: Record<string, Thumbnail>;
+  thumbnails?: Thumbnails;
 }
 
 export interface DisplayControls {

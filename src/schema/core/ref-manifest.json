@@ -74,25 +74,7 @@
           }
         },
         "thumbnails": {
-          "type": "object",
-          "description": "Thumbnail images at various sizes",
-          "properties": {
-            "small": {
-              "$ref": "#/$defs/Thumbnail"
-            },
-            "large": {
-              "$ref": "#/$defs/Thumbnail"
-            },
-            "xlarge": {
-              "$ref": "#/$defs/Thumbnail"
-            },
-            "default": {
-              "$ref": "#/$defs/Thumbnail"
-            }
-          },
-          "additionalProperties": {
-            "$ref": "#/$defs/Thumbnail"
-          }
+          "$ref": "#/$defs/Thumbnails"
         }
       }
     },
@@ -116,10 +98,31 @@
         }
       }
     },
+    "Thumbnails": {
+      "type": "object",
+      "description": "Thumbnail images at various sizes, keyed by size name (small, large, xlarge, default, or any other key)",
+      "properties": {
+        "small": {
+          "$ref": "#/$defs/Thumbnail"
+        },
+        "large": {
+          "$ref": "#/$defs/Thumbnail"
+        },
+        "xlarge": {
+          "$ref": "#/$defs/Thumbnail"
+        },
+        "default": {
+          "$ref": "#/$defs/Thumbnail"
+        }
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/Thumbnail"
+      }
+    },
     "Thumbnail": {
       "type": "object",
       "description": "Thumbnail image specification",
-      "required": ["uri", "w", "h"],
+      "required": ["uri"],
       "properties": {
         "uri": {
           "type": "string",
@@ -128,12 +131,12 @@
         },
         "w": {
           "type": "integer",
-          "description": "Width in pixels",
+          "description": "Intrinsic image width in pixels. Optional: producers that only hold a bare thumbnail URL omit it rather than guess.",
           "minimum": 1
         },
         "h": {
           "type": "integer",
-          "description": "Height in pixels",
+          "description": "Intrinsic image height in pixels. Optional: producers that only hold a bare thumbnail URL omit it rather than guess.",
           "minimum": 1
         },
         "sha256": {
