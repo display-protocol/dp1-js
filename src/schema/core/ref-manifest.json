@@ -74,7 +74,25 @@
           }
         },
         "thumbnails": {
-          "$ref": "#/$defs/Thumbnails"
+          "type": "object",
+          "description": "Thumbnail images at various sizes",
+          "properties": {
+            "small": {
+              "$ref": "#/$defs/Thumbnail"
+            },
+            "large": {
+              "$ref": "#/$defs/Thumbnail"
+            },
+            "xlarge": {
+              "$ref": "#/$defs/Thumbnail"
+            },
+            "default": {
+              "$ref": "#/$defs/Thumbnail"
+            }
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/Thumbnail"
+          }
         }
       }
     },
@@ -96,27 +114,6 @@
           "description": "URL to artist's website or profile",
           "format": "uri"
         }
-      }
-    },
-    "Thumbnails": {
-      "type": "object",
-      "description": "Thumbnail images at various sizes, keyed by size name (small, large, xlarge, default, or any other key)",
-      "properties": {
-        "small": {
-          "$ref": "#/$defs/Thumbnail"
-        },
-        "large": {
-          "$ref": "#/$defs/Thumbnail"
-        },
-        "xlarge": {
-          "$ref": "#/$defs/Thumbnail"
-        },
-        "default": {
-          "$ref": "#/$defs/Thumbnail"
-        }
-      },
-      "additionalProperties": {
-        "$ref": "#/$defs/Thumbnail"
       }
     },
     "Thumbnail": {

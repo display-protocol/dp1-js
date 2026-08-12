@@ -31,10 +31,7 @@ function hasPlaylistsExtensionFields(doc: Playlist): boolean {
   }
   return doc.items.some(
     item =>
-      item.note !== undefined ||
-      item.displayAt !== undefined ||
-      item.artists !== undefined ||
-      item.thumbnails !== undefined
+      item.note !== undefined || item.displayAt !== undefined || item.inlineManifest !== undefined
   );
 }
 

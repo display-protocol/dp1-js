@@ -492,70 +492,61 @@ test('PlaylistItemWithPlaylistsExtension_OK_and_displayAt', () => {
   );
 });
 
-test('PlaylistItemWithPlaylistsExtension_acceptsItemArtistsAndThumbnails', () => {
-  assert.doesNotThrow(() =>
-    PlaylistItemWithPlaylistsExtension(
-      Buffer.from(
-        '{"source":"https://example.com/a","artists":[{"name":"Casey Reas","url":"https://reas.com"}],"thumbnails":{"small":{"uri":"https://cdn.example.com/s.jpg","w":320,"h":180},"default":{"uri":"https://cdn.example.com/l.jpg"}}}'
-      )
-    )
-  );
-  // A size key outside small/large/xlarge/default is admitted (additionalProperties).
-  assert.doesNotThrow(() =>
-    PlaylistItemWithPlaylistsExtension(
-      Buffer.from(
-        '{"source":"https://example.com/a","thumbnails":{"tiny":{"uri":"ipfs://bafyexample/t.jpg","sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}}}'
-      )
-    )
-  );
-});
+const sampleManifest = {
+  refVersion: '0.1.0',
+  id: 'r',
+  created: '2025-01-01T00:00:00Z',
+  locale: 'en',
+  metadata: { title: 'Work', thumbnails: { default: { uri: 'https://example.com/t.jpg' } } },
+};
 
-test('PlaylistItemWithPlaylistsExtension_rejectsMalformedArtistsAndThumbnails', () => {
-  const cases = [
-    // Artist requires `name`.
-    '{"source":"https://example.com/a","artists":[{"url":"https://reas.com"}]}',
-    // `artists` is an array, not a bare object.
-    '{"source":"https://example.com/a","artists":{"name":"Casey Reas"}}',
-    // Thumbnail requires `uri`.
-    '{"source":"https://example.com/a","thumbnails":{"small":{"w":320,"h":180}}}',
-    // Dimensions stay integers ≥ 1 when present.
-    '{"source":"https://example.com/a","thumbnails":{"small":{"uri":"https://cdn.example.com/s.jpg","w":0,"h":180}}}',
-    '{"source":"https://example.com/a","thumbnails":{"small":{"uri":"https://cdn.example.com/s.jpg","h":"180"}}}',
-  ];
-  for (const raw of cases) {
-    assert.throws(
-      () => PlaylistItemWithPlaylistsExtension(Buffer.from(raw)),
-      err => err instanceof Error && err.cause === ErrValidation,
-      raw
-    );
-  }
-});
-
-test('PlaylistWithPlaylistsExtension_validatesItemArtistsAndThumbnails', () => {
+test('PlaylistWithPlaylistsExtension_validatesItemInlineManifest', () => {
   assert.doesNotThrow(() =>
     PlaylistWithPlaylistsExtension(
       signedPlaylist({
         dpVersion: '1.1.0',
         title: 'x',
-        items: [
-          {
-            source: 'https://a',
-            artists: [{ name: 'Casey Reas' }],
-            thumbnails: { default: { uri: 'https://cdn.example.com/l.jpg' } },
-          },
-        ],
+        items: [{ source: 'https://a', inlineManifest: sampleManifest }],
       })
     )
   );
-  assert.throws(
-    () =>
-      PlaylistWithPlaylistsExtension(
-        signedPlaylist({
-          dpVersion: '1.1.0',
-          title: 'x',
-          items: [{ source: 'https://a', artists: [{ url: 'https://reas.com' }] }],
+  // The nested manifest is held to the core ref-manifest schema: `locale` is required,
+  // and a malformed thumbnail inside it fails the whole playlist.
+  for (const manifest of [
+    { ...sampleManifest, locale: undefined },
+    { ...sampleManifest, refVersion: 'nope' },
+    {
+      ...sampleManifest,
+      metadata: { thumbnails: { default: { uri: 'https://example.com/t.jpg', w: 0 } } },
+    },
+  ]) {
+    assert.throws(
+      () =>
+        PlaylistWithPlaylistsExtension(
+          signedPlaylist({
+            dpVersion: '1.1.0',
+            title: 'x',
+            items: [{ source: 'https://a', inlineManifest: manifest }],
+          })
+        ),
+      err => err instanceof Error && err.cause === ErrValidation,
+      JSON.stringify(manifest)
+    );
+  }
+});
+
+test('RefManifest_i18nTakesLocalizedMetadata', () => {
+  assert.doesNotThrow(() =>
+    RefManifest(
+      Buffer.from(
+        JSON.stringify({
+          ...sampleManifest,
+          i18n: { fr: { title: 'Œuvre', description: 'Une description', creditLine: 'Crédit' } },
         })
-      ),
-    err => err instanceof Error && err.cause === ErrValidation
+      )
+    )
+  );
+  assert.throws(() =>
+    RefManifest(Buffer.from(JSON.stringify({ ...sampleManifest, i18n: { fr: { title: 42 } } })))
   );
 });

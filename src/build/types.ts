@@ -93,10 +93,12 @@ export interface PlaylistItem {
   note?: Note;
   /** Playlists extension overlay (release schedule). */
   displayAt?: string;
-  /** Playlists extension overlay (§3.7); same shape as ref-manifest `metadata.artists`. */
-  artists?: Artist[];
-  /** Playlists extension overlay (§3.7); same shape as ref-manifest `metadata.thumbnails`. */
-  thumbnails?: Thumbnails;
+  /**
+   * Playlists extension overlay (§3.6): a full Ref Manifest carried inline instead of
+   * behind `ref`. Same schema and validation as a ref-fetched manifest; when both are
+   * present, `ref` wins.
+   */
+  inlineManifest?: RefManifest;
 }
 
 export interface Defaults {
@@ -195,9 +197,6 @@ export interface Thumbnail {
   sha256?: string;
 }
 
-/** Size-keyed thumbnail collection (`small`, `large`, `xlarge`, `default`, or any other key). */
-export type Thumbnails = Record<string, Thumbnail>;
-
 export interface Artist {
   name: string;
   id?: string;
@@ -210,7 +209,17 @@ export interface Metadata {
   creditLine?: string;
   description?: string;
   tags?: string[];
-  thumbnails?: Thumbnails;
+  thumbnails?: Record<string, Thumbnail>;
+}
+
+/**
+ * Localized text overrides carried under `i18n`. Narrower than `Metadata`:
+ * the schema localizes only these three fields.
+ */
+export interface LocalizedMetadata {
+  title?: string;
+  description?: string;
+  creditLine?: string;
 }
 
 export interface DisplayControls {
@@ -240,7 +249,7 @@ export interface RefManifest {
   locale: string;
   metadata?: Metadata;
   controls?: Controls;
-  i18n?: Record<string, Metadata>;
+  i18n?: Record<string, LocalizedMetadata>;
 }
 
 // Channel document (channels extension)

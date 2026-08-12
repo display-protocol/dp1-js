@@ -184,8 +184,11 @@ export const PlaylistItem = (data: Buffer | string | unknown) =>
   validate(`${playlist.$id}#/$defs/PlaylistItem`, data);
 export const parsePlaylistItem = PlaylistItem;
 /**
- * Core PlaylistItem + playlists-extension overlay (note / displayAt / artists / thumbnails).
- * Used by dynamicQuery.
+ * Core PlaylistItem + playlists-extension overlay (note / displayAt). Used by dynamicQuery.
+ *
+ * Note: the composed schema mirrors the spec file, which does not (yet) carry
+ * `inlineManifest`. Builders validate a nested manifest with `RefManifest` directly;
+ * playlist-level validation covers it through the extension fragment.
  */
 export const PlaylistItemWithPlaylistsExtension = (data: Buffer | string | unknown) =>
   validate(playlistItemWithExt.$id, data);
@@ -220,13 +223,13 @@ export const ReproEngineVersion = (data: Buffer | string | unknown) =>
 
 export const Thumbnail = (data: Buffer | string | unknown) =>
   validate(`${refManifest.$id}#/$defs/Thumbnail`, data);
-/** Size-keyed thumbnail collection; also the shape of item-level `thumbnails`. */
-export const Thumbnails = (data: Buffer | string | unknown) =>
-  validate(`${refManifest.$id}#/$defs/Thumbnails`, data);
 export const Artist = (data: Buffer | string | unknown) =>
   validate(`${refManifest.$id}#/$defs/Artist`, data);
 export const Metadata = (data: Buffer | string | unknown) =>
   validate(`${refManifest.$id}#/$defs/Metadata`, data);
+/** Localized text overrides under `i18n` (title / description / creditLine only). */
+export const LocalizedMetadata = (data: Buffer | string | unknown) =>
+  validate(`${refManifest.$id}#/$defs/LocalizedMetadata`, data);
 export const Controls = (data: Buffer | string | unknown) =>
   validate(`${refManifest.$id}#/$defs/Controls`, data);
 export const DisplayControls = (data: Buffer | string | unknown) =>

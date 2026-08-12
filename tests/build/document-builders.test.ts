@@ -8,6 +8,7 @@ import {
   DisplayPrefsBuilder,
   DynamicQueryBuilder,
   EntityBuilder,
+  LocalizedMetadataBuilder,
   MetadataBuilder,
   NoteBuilder,
   PlaylistBuilder,
@@ -42,34 +43,33 @@ test('PlaylistItemBuilder accepts extension note and displayAt', () => {
   assert.equal(item.displayAt, '2026-07-21T00:00:00Z');
 });
 
-test('PlaylistItemBuilder accepts extension artists and thumbnails', () => {
+test('PlaylistItemBuilder carries an inline ref manifest', () => {
+  const manifest = new RefManifestBuilder()
+    .locale('en')
+    .metadata(
+      new MetadataBuilder()
+        .title('Pre-Process')
+        .addArtist(new ArtistBuilder().name('Casey Reas').url('https://reas.com'))
+        .addThumbnail('default', new ThumbnailBuilder().uri('https://cdn.example.com/l.jpg'))
+    );
   const item = new PlaylistItemBuilder()
     .source('https://example.com/a.html')
-    .addArtist(new ArtistBuilder().name('Casey Reas').url('https://reas.com'))
-    .thumbnails({
-      small: new ThumbnailBuilder().uri('https://cdn.example.com/s.jpg').widthPx(320).heightPx(180),
-    })
-    .addThumbnail('default', new ThumbnailBuilder().uri('https://cdn.example.com/l.jpg'))
+    .inlineManifest(manifest)
     .build();
-  assert.equal(item.artists?.[0]?.name, 'Casey Reas');
-  assert.equal(item.thumbnails?.small?.w, 320);
+  assert.equal(item.inlineManifest?.metadata?.title, 'Pre-Process');
+  assert.equal(item.inlineManifest?.metadata?.artists?.[0]?.name, 'Casey Reas');
   // A bare thumbnail URL carries no dimensions.
-  assert.equal(item.thumbnails?.default?.uri, 'https://cdn.example.com/l.jpg');
-  assert.equal(item.thumbnails?.default?.w, undefined);
-
-  const bulk = new PlaylistItemBuilder()
-    .source('https://example.com/a.html')
-    .artists([{ name: 'A. Example', id: 'artist-001' }])
-    .build();
-  assert.equal(bulk.artists?.[0]?.id, 'artist-001');
+  assert.equal(item.inlineManifest?.metadata?.thumbnails?.default?.w, undefined);
+  assert.match(item.inlineManifest?.id ?? '', /^[0-9a-f-]{36}$/i);
 });
 
-test('PlaylistItemBuilder rejects an artist without a name', () => {
+test('PlaylistItemBuilder validates a raw inline manifest against the core schema', () => {
   assert.throws(
     () =>
       new PlaylistItemBuilder()
         .source('https://example.com/a.html')
-        .artists([{ url: 'https://reas.com' } as never])
+        // `locale` is required by the ref-manifest schema.
+        .inlineManifest({ refVersion: '0.1.0', id: 'r', created: '2025-01-01T00:00:00Z' } as never)
         .build(),
     isValidationError
   );
@@ -122,23 +122,33 @@ test('PlaylistBuilder uses extension schema for item note and summary', () => {
     .build();
   assert.equal(withItemNote.items[0]?.note?.text, 'break');
 
-  // Item-level artists / thumbnails are extension fields too, so they route to the
-  // composed schema and a malformed artist is caught at the playlist level.
-  const withItemArtists = new PlaylistBuilder()
+  // inlineManifest is an extension field too, so it routes to the composed schema and a
+  // malformed nested manifest is caught at the playlist level.
+  const withInline = new PlaylistBuilder()
     .title('Show')
     .addItem(
       new PlaylistItemBuilder()
         .source('https://example.com/a.html')
-        .addArtist(new ArtistBuilder().name('Casey Reas'))
+        .inlineManifest(new RefManifestBuilder().locale('en'))
     )
     .build();
-  assert.equal(withItemArtists.items[0]?.artists?.[0]?.name, 'Casey Reas');
+  assert.equal(withInline.items[0]?.inlineManifest?.locale, 'en');
 
   assert.throws(
     () =>
       new PlaylistBuilder()
         .title('Show')
-        .items([{ source: 'https://example.com/a.html', artists: [{ url: 'https://x' } as never] }])
+        .items([
+          {
+            source: 'https://example.com/a.html',
+            inlineManifest: {
+              refVersion: '0.1.0',
+              id: 'r',
+              created: 'nope',
+              locale: 'en',
+            } as never,
+          },
+        ])
         .build(),
     isValidationError
   );
@@ -350,4 +360,21 @@ test('RefManifestBuilder covers explicit fields and i18n', () => {
   assert.equal(manifest.id, '55555555-5555-4555-8555-555555555555');
   assert.equal(manifest.i18n?.fr?.title, 'Oeuvre');
   assert.equal(manifest.metadata?.title, 'Work');
+});
+
+test('RefManifestBuilder accepts LocalizedMetadataBuilder values for i18n', () => {
+  const manifest = new RefManifestBuilder()
+    .locale('en')
+    .i18n({
+      fr: new LocalizedMetadataBuilder().title('Œuvre').creditLine('Crédit'),
+    })
+    .addLocalized('vi', new LocalizedMetadataBuilder().title('Tác phẩm').description('Mô tả'))
+    .build();
+  assert.equal(manifest.i18n?.fr?.title, 'Œuvre');
+  assert.equal(manifest.i18n?.fr?.creditLine, 'Crédit');
+  assert.equal(manifest.i18n?.vi?.description, 'Mô tả');
+});
+
+test('LocalizedMetadataBuilder rejects a non-string field', () => {
+  assert.throws(() => new LocalizedMetadataBuilder().title(42 as never).build(), isValidationError);
 });

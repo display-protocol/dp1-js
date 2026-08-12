@@ -4,16 +4,25 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
-### Added (playlists extension: item-level `artists` and `thumbnails`)
-
-- Playlist items accept optional `artists` and `thumbnails`, per the Playlist Extension §3.7 amendment ([display-protocol/dp1#44](https://github.com/display-protocol/dp1/pull/44)). Both reuse the ref-manifest vocabulary by `$ref` — `artists` is an array of `Artist` (`name` required; `id`, `url` optional) and `thumbnails` is the size-keyed `Thumbnails` collection — so an item and a resolved manifest carry identical shapes. A producer that already holds the credit line and preview URL at build time no longer needs to host a ref-manifest to express them. These are extension fields, not canonical core: they are validated by the composed overlay (`playlist_with_extension.json` / `playlist_item_with_extension.json`), and core `playlist.json` is unchanged.
-- `PlaylistItemBuilder` gains `.artists()`, `.addArtist()`, `.thumbnails()`, and `.addThumbnail(key, value)`. As with `.note()` / `.displayAt()`, setting any of them makes `build()` validate against the composed core + extension schema rather than core alone, so a malformed artist is caught at `build()` instead of at publish time. `PlaylistBuilder` likewise routes to the composed schema when any item carries these fields.
-- New `Thumbnails` type export and `ValidateThumbnails` leaf validator, mirroring the schema's new `$defs.Thumbnails`.
-
 ### Changed (loosening: `Thumbnail.w` / `Thumbnail.h` optional)
 
-- `Thumbnail` now requires only `uri`; `w` and `h` are optional, matching the relaxed core ref-manifest schema in the same amendment. A producer holding a bare thumbnail URL omits the dimensions rather than guessing them. When present they are still validated as integers ≥ 1, and `sha256` is unchanged. This is a loosening only — every document that validated before still validates — but it moves in the opposite direction from the 2.1.0 tightening, so a consumer that has been reading `thumbnail.w` unguarded since then must now treat both dimensions as possibly absent. The `Thumbnail` TypeScript type reflects this (`w?: number`, `h?: number`), so `tsc` will point at the unguarded reads.
+- `Thumbnail` now requires only `uri`; `w` and `h` are optional, matching the relaxed core ref-manifest schema ([display-protocol/dp1#44](https://github.com/display-protocol/dp1/pull/44)). A producer holding a bare thumbnail URL omits the dimensions rather than guessing them. When present they are still validated as integers ≥ 1, and `sha256` is unchanged. This is a loosening only — every document that validated before still validates — but it moves in the opposite direction from the 2.1.0 tightening, so a consumer that has been reading `thumbnail.w` unguarded since then must now treat both dimensions as possibly absent. The `Thumbnail` TypeScript type reflects this (`w?: number`, `h?: number`), so `tsc` will point at the unguarded reads.
 - `ThumbnailBuilder.build()` omits `w` / `h` when they were never set, instead of emitting them as keys holding `undefined`. Callers that set both are unaffected, key order included. Callers that set neither used to get a throw — `undefined` fails the old `required` check — so they now get `{ uri }` where they previously got an error; no already-valid output changes shape, and no signed payload is affected.
+
+### Added (playlists extension: `inlineManifest` on playlist items)
+
+- Playlist items accept optional `inlineManifest`: a complete Ref Manifest carried on the item instead of behind a `ref` URL, per the Playlist Extension §3.6 amendment ([display-protocol/dp1#38](https://github.com/display-protocol/dp1/pull/38)), which dp1-js had not picked up. Same schema and same validation as a ref-fetched manifest; integrity comes from the playlist signature, so no `refHash` is involved. This is an extension field, not canonical core — it is validated through the composed overlay, and core `playlist.json` is untouched.
+- `PlaylistItemBuilder.inlineManifest(manifest | RefManifestBuilder)`, and `PlaylistBuilder` routes to the composed schema when any item carries one. Note the spec's `playlist_item_with_extension.json` does not itself list `inlineManifest`, so the composed _single-item_ schema does not check a nested manifest; rather than deviate from the spec file, `PlaylistItemBuilder.build()` validates the manifest against the core ref-manifest schema directly. Whole-playlist validation covers it through the extension fragment either way.
+
+### Added (ref manifest: `LocalizedMetadata` model and builder)
+
+- New `LocalizedMetadata` type, `ValidateLocalizedMetadata` leaf validator, and `LocalizedMetadataBuilder` covering the three localizable fields (`title`, `description`, `creditLine`). The schema has always defined `$defs/LocalizedMetadata` for `i18n` values; dp1-js had no model for it.
+- `RefManifestBuilder.i18n()` now accepts `LocalizedMetadata` or `LocalizedMetadataBuilder` values and resolves builders, and `.addLocalized(locale, value)` adds one locale at a time.
+- `MetadataBuilder.addThumbnail(key, value)` adds one size-keyed thumbnail, matching the existing `.addArtist()`.
+
+### Fixed
+
+- `RefManifest.i18n` is typed `Record<string, LocalizedMetadata>` instead of `Record<string, Metadata>`. The schema localizes only `title`, `description`, and `creditLine`, so the old type invited callers to put `artists`, `tags`, or `thumbnails` in a locale override, where they carry no defined meaning. A caller passing a full `Metadata` to `.i18n()` will now fail to compile; drop the non-localizable fields. Runtime validation is unchanged — `LocalizedMetadata` does not set `additionalProperties: false`, so existing documents still validate.
 
 ### Changed (breaking: `did:pkh` address casing and `chainID` validation)
 
