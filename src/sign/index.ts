@@ -126,12 +126,39 @@ export function Ed25519PublicKeyFromDIDKey(kid: string) {
   return data.subarray(2);
 }
 
-export function EthereumAddressToDIDPKH(addr: string, chainID: number) {
-  const hex = String(addr).toLowerCase().replace(/^0x/, '');
-  if (hex.length !== 40) throw new Error('invalid ethereum address');
-  return `${didPkhPrefix}${chainID}:0x${hex}`;
+/**
+ * Apply the EIP-55 mixed-case checksum to a 40-character lowercase hex address.
+ * The hash is taken over the ASCII of the lowercase hex string, not the address bytes.
+ */
+function eip55Checksum(lowerHex: string) {
+  const hash = bytesToHex(keccak_256(Buffer.from(lowerHex, 'ascii')));
+  let out = '0x';
+  for (let i = 0; i < lowerHex.length; i++) {
+    out += parseInt(hash[i], 16) >= 8 ? lowerHex[i].toUpperCase() : lowerHex[i];
+  }
+  return out;
 }
 
+/**
+ * Build a CAIP-10 `did:pkh:eip155:{chainID}:{address}` identifier.
+ * The address is normalized to EIP-55 mixed-case checksum form, matching
+ * dp1-go's `EthereumAddressToDIDPKH`, so both implementations emit byte-identical
+ * `kid` strings for the same key.
+ */
+export function EthereumAddressToDIDPKH(addr: string, chainID: number) {
+  const hex = String(addr).toLowerCase().replace(/^0x/, '');
+  if (!/^[0-9a-f]{40}$/.test(hex)) throw new Error('invalid ethereum address');
+  if (!Number.isInteger(chainID) || chainID < 1)
+    throw new Error(`chainID must be a positive integer, got ${chainID}`);
+  return `${didPkhPrefix}${chainID}:${eip55Checksum(hex)}`;
+}
+
+/**
+ * Parse a `did:pkh:eip155:{chainID}:{address}` identifier.
+ * Returns the address in EIP-55 checksum form regardless of the input casing.
+ * As in dp1-go, an all-lowercase address is accepted, but a mixed-case address
+ * whose checksum does not validate is rejected rather than silently trusted.
+ */
 export function EthereumAddressFromDIDPKH(kid: string) {
   const parts = String(kid).split(':');
   if (parts.length !== 5 || parts[0] !== 'did' || parts[1] !== 'pkh' || parts[2] !== 'eip155') {
@@ -139,9 +166,14 @@ export function EthereumAddressFromDIDPKH(kid: string) {
   }
   const chainID = Number(parts[3]);
   const addr = parts[4];
-  if (!/^0x[0-9a-fA-F]{40}$/.test(addr) || !Number.isInteger(chainID))
+  if (!/^0x[0-9a-fA-F]{40}$/.test(addr) || !Number.isInteger(chainID) || chainID < 1)
     throw new Error('invalid did:pkh');
-  return [addr, chainID] as const;
+
+  const checksummed = eip55Checksum(addr.slice(2).toLowerCase());
+  if (addr !== checksummed && addr !== addr.toLowerCase())
+    throw new Error(`ethereum address checksum mismatch in did:pkh: got ${addr}`);
+
+  return [checksummed, chainID] as const;
 }
 
 class Ed25519Verifier {
