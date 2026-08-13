@@ -2,7 +2,11 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign as nodeSign, verify as nodeVerify } from 'node:crypto';
 import { ed25519 } from '@noble/curves/ed25519.js';
-import { ed25519PublicKeyBytes, ed25519SecretKeyBytes } from '../../src/sign/keys.js';
+import {
+  decodeHexSignature,
+  ed25519PublicKeyBytes,
+  ed25519SecretKeyBytes,
+} from '../../src/sign/keys.js';
 import {
   SignLegacyEd25519,
   SignMultiEd25519,
@@ -123,4 +127,79 @@ test('a non-Ed25519 KeyObject is rejected rather than silently misread', () => {
   const p256 = generateKeyPairSync('ec', { namedCurve: 'P-256' });
   assert.throws(() => ed25519SecretKeyBytes(p256.privateKey), /expected Ed25519/);
   assert.throws(() => ed25519PublicKeyBytes(p256.publicKey), /expected Ed25519/);
+});
+
+// The DER path is parsed structurally (a tag-length-value walk), not by scanning for a byte
+// pattern. These pin that it accepts the encodings that exist in the wild and fails closed on
+// everything else, rather than handing back 32 bytes of whatever followed a matching prefix.
+
+test('PKCS#8 v2 with an attached public key still yields the seed', () => {
+  // RFC 5958 allows version 1 plus a [1] publicKey field after privateKey. Node exports v1,
+  // so this shape has to be built by hand — but other toolchains do emit it.
+  const v2 = Buffer.concat([
+    Buffer.from('3051', 'hex'), // SEQUENCE, 81 bytes
+    Buffer.from('020101', 'hex'), // version = 1 (v2)
+    Buffer.from('300506032b6570', 'hex'), // AlgorithmIdentifier { id-Ed25519 }
+    Buffer.from('04220420', 'hex'), // privateKey OCTET STRING { OCTET STRING(32) }
+    RAW_SECRET,
+    Buffer.from('812100', 'hex'), // [1] publicKey BIT STRING(33), 0 unused bits
+    RAW_PUBLIC,
+  ]);
+  assert.deepEqual(Buffer.from(ed25519SecretKeyBytes(v2)), RAW_SECRET);
+});
+
+test('a private DER is not accepted as a public key, or vice versa', () => {
+  assert.throws(() => ed25519PublicKeyBytes(PKCS8_DER), /dp1: invalid ed25519 public key/);
+  assert.throws(() => ed25519SecretKeyBytes(SPKI_DER), /dp1: invalid ed25519 private key/);
+  assert.throws(() => ed25519PublicKeyBytes(PKCS8_PEM), /dp1: invalid ed25519 public key/);
+  assert.throws(() => ed25519SecretKeyBytes(SPKI_PEM), /dp1: invalid ed25519 private key/);
+});
+
+test('a crafted DER carrying the key-field byte pattern is rejected, not mis-sliced', () => {
+  // A prefix scan for `03 21 00` / `04 22 04 20` would match inside this blob and return 32
+  // bytes of junk. Structural parsing rejects it.
+  const crafted = Buffer.concat([
+    Buffer.from('302e020100300506032b657004220420', 'hex'),
+    Buffer.from('030300', 'hex'),
+    Buffer.from('032100', 'hex'),
+    Buffer.alloc(40, 0xab),
+  ]);
+  assert.throws(() => ed25519PublicKeyBytes(crafted), /dp1: invalid ed25519 public key/);
+});
+
+test('truncated and non-Ed25519 DER fail closed', () => {
+  assert.throws(() => ed25519SecretKeyBytes(PKCS8_DER.subarray(0, 20)), /malformed DER/);
+  assert.throws(() => ed25519PublicKeyBytes(SPKI_DER.subarray(0, 20)), /malformed DER/);
+  // Right structure, wrong algorithm: an X25519 SPKI (OID 1.3.101.110).
+  const x25519Spki = Buffer.concat([
+    Buffer.from('302a300506032b656e032100', 'hex'),
+    Buffer.alloc(32, 1),
+  ]);
+  assert.throws(() => ed25519PublicKeyBytes(x25519Spki), /expected Ed25519/);
+  // A declared length that runs past the end of the input.
+  assert.throws(() => ed25519PublicKeyBytes(Buffer.from('30ff0102', 'hex')), /malformed DER/);
+});
+
+test('a non-Ed25519 DER keypair from node:crypto is rejected', () => {
+  const p256 = generateKeyPairSync('ec', { namedCurve: 'P-256' });
+  assert.throws(
+    () => ed25519SecretKeyBytes(p256.privateKey.export({ format: 'der', type: 'pkcs8' })),
+    /dp1: invalid ed25519 private key/
+  );
+  assert.throws(
+    () => ed25519PublicKeyBytes(p256.publicKey.export({ format: 'der', type: 'spki' })),
+    /dp1: invalid ed25519 public key/
+  );
+});
+
+test('decodeHexSignature accepts hex forms and answers empty for the rest', () => {
+  const hex = 'ab'.repeat(32);
+  assert.equal(Buffer.from(decodeHexSignature(hex)).toString('hex'), hex);
+  assert.equal(Buffer.from(decodeHexSignature(`0x${hex}`)).toString('hex'), hex);
+  assert.equal(Buffer.from(decodeHexSignature(`0X${hex}`)).toString('hex'), hex);
+  assert.equal(Buffer.from(decodeHexSignature(`  ${hex}  `)).toString('hex'), hex);
+  // Callers length-check the result, so unusable input becomes an empty array, not a throw.
+  for (const bad of ['', '0x', 'zz', 'abc', 'ab cd', '0xzz']) {
+    assert.equal(decodeHexSignature(bad).length, 0, JSON.stringify(bad));
+  }
 });

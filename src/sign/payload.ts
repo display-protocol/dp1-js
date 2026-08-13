@@ -52,17 +52,23 @@ export function verifyEd25519(raw: BinaryLike, sig: Uint8Array, publicKey: Ed255
 /**
  * Ed25519 verification that answers false instead of throwing.
  *
- * `@noble/curves` rejects a malformed point or scalar by throwing, where Node's
- * `crypto.verify` returned `false`. Callers here treat every failure the same way, so
+ * `@noble/curves` rejects a malformed point or signature by throwing, where Node's
+ * `crypto.verify` returned `false`. Callers here treat every such failure the same way, so
  * normalize to the boolean the call sites were already written against.
+ *
+ * Key normalization deliberately stays *outside* the `try`. An unusable public key is a
+ * caller mistake, not a forged document; folding it in would report "invalid signature" for
+ * what is really "you passed the wrong thing", which is what `node:crypto` surfaced as a
+ * thrown `ERR_OSSL_*` before.
  */
 export function verifyEd25519Digest(
   digest: Uint8Array,
   sig: Uint8Array,
   publicKey: Ed25519KeyLike
 ) {
+  const point = ed25519PublicKeyBytes(publicKey);
   try {
-    return ed25519.verify(sig, digest, ed25519PublicKeyBytes(publicKey));
+    return ed25519.verify(sig, digest, point);
   } catch {
     return false;
   }

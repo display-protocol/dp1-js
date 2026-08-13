@@ -1,4 +1,4 @@
-import { Bytes, toText, utf8ToBytes, type BinaryLike } from '../runtime/bytes.js';
+import { asBytes, toText, utf8ToBytes, type BinaryLike, type Bytes } from '../runtime/bytes.js';
 
 function escapeString(value: string) {
   return JSON.stringify(value);
@@ -30,5 +30,5 @@ function canonicalize(value: unknown): string {
  * `Buffer` this used to return did.
  */
 export function transform(input: BinaryLike): Bytes {
-  return Bytes.from(utf8ToBytes(canonicalize(JSON.parse(toText(input)))));
+  return asBytes(utf8ToBytes(canonicalize(JSON.parse(toText(input)))));
 }

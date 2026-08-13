@@ -62,24 +62,44 @@ const FIXED = [
   '[::1]',
 ];
 
-function fuzzCases(count: number) {
+/**
+ * Seeded PRNG (mulberry32).
+ *
+ * The fuzz is deterministic on purpose: an unseeded run that diverges once in CI leaves no way
+ * to reproduce the input. Change SEED to explore new ground, and pin any failure it finds as a
+ * fixed case above.
+ */
+const SEED = 0x5dee_c0de;
+
+function makeRandom(seed: number) {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function fuzzCases(count: number, random: () => number) {
   const out: string[] = [];
   const alphabet = '0123456789abcdefABCDEF:.%[]g -_~';
   for (let i = 0; i < count; i++) {
-    const length = 1 + Math.floor(Math.random() * 26);
+    const length = 1 + Math.floor(random() * 26);
     let value = '';
     for (let j = 0; j < length; j++) {
-      value += alphabet[Math.floor(Math.random() * alphabet.length)];
+      value += alphabet[Math.floor(random() * alphabet.length)];
     }
     out.push(value);
   }
   return out;
 }
 
-function structuredCases(count: number) {
+function structuredCases(count: number, random: () => number) {
   const out: string[] = [];
-  const group = () => Math.floor(Math.random() * 65536).toString(16);
-  const octet = () => Math.floor(Math.random() * 300);
+  const group = () => Math.floor(random() * 65536).toString(16);
+  const octet = () => Math.floor(random() * 300);
   const zoneChars = '0123456789abcdefZ:.-_%[ ';
   for (let i = 0; i < count; i++) {
     const forms = [
@@ -92,14 +112,14 @@ function structuredCases(count: number) {
       `${octet()}.${octet()}.${octet()}.${octet()}`,
     ];
     let zone = '';
-    if (Math.random() < 0.4) {
-      const length = 1 + Math.floor(Math.random() * 5);
+    if (random() < 0.4) {
+      const length = 1 + Math.floor(random() * 5);
       zone = '%';
       for (let j = 0; j < length; j++) {
-        zone += zoneChars[Math.floor(Math.random() * zoneChars.length)];
+        zone += zoneChars[Math.floor(random() * zoneChars.length)];
       }
     }
-    out.push(forms[Math.floor(Math.random() * forms.length)] + zone);
+    out.push(forms[Math.floor(random() * forms.length)] + zone);
   }
   return out;
 }
@@ -112,9 +132,17 @@ test('isIP matches node:net on fixed cases', () => {
   }
 });
 
-test('isIP matches node:net under fuzzing', () => {
-  for (const value of [...fuzzCases(20_000), ...structuredCases(10_000)]) {
-    assert.equal(isIP(value), nodeIsIP(value), `isIP(${JSON.stringify(value)})`);
+test('isIP matches node:net under seeded fuzzing', () => {
+  const random = makeRandom(SEED);
+  // Structured cases carry the weight: random ASCII is almost never a valid address, so it
+  // mostly re-proves the negative. The structured generator emits near-valid IPv6, zone-id,
+  // and IPv4-tail shapes, which is where a divergence would actually hide.
+  const cases = [...structuredCases(20_000, random), ...fuzzCases(20_000, random)];
+  const valid = cases.filter(value => nodeIsIP(value) !== 0).length;
+  assert.ok(valid > 5_000, `expected the corpus to contain real addresses, got ${valid}`);
+
+  for (const value of cases) {
+    assert.equal(isIP(value), nodeIsIP(value), `seed ${SEED}: isIP(${JSON.stringify(value)})`);
   }
 });
 

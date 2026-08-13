@@ -286,7 +286,13 @@ try {
 
   const ssrf = await (await fetch(`${base}/ssrf`)).json();
   for (const [label, verdict] of Object.entries(ssrf)) {
-    assert(verdict !== 'allowed', `SSRF guard let ${label} through on workerd`, ssrf);
+    // Assert the endpoint-policy verdict specifically. `!== 'allowed'` would also pass on a
+    // transport error, which would make this check quietly vacuous.
+    assert(
+      verdict === 'dynamicQuery: endpoint policy',
+      `SSRF guard did not reject ${label} on policy grounds`,
+      ssrf
+    );
   }
   console.log(`workerd-smoke: GET /ssrf -> ${JSON.stringify(ssrf)}`);
 

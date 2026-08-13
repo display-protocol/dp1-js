@@ -1,3 +1,4 @@
+import { builtinModules } from 'node:module';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
@@ -37,6 +38,13 @@ export default tseslint.config(
               group: ['node:*'],
               message:
                 'No node: imports in src/ — the build must load on browsers and Workers. Use src/runtime/* (bytes, ip, dns) instead.',
+            },
+            {
+              // TypeScript resolves the bare forms through @types/node just as happily, and
+              // the bundler rewrites `node:crypto` to `crypto` on the way out.
+              group: builtinModules,
+              message:
+                'No Node builtin imports in src/ — the build must load on browsers and Workers. Use src/runtime/* (bytes, ip, dns) instead.',
             },
           ],
         },

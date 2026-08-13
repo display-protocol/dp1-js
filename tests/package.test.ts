@@ -2,7 +2,7 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { builtinModules } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -171,7 +171,16 @@ test('the built package imports no Node builtin', async () => {
   const builtins = new Set(builtinModules.flatMap(name => [name, `node:${name}`]));
   const SPECIFIER = /(?:\bfrom\s*|\brequire\s*\(\s*|\bimport\s*\(\s*)["']([^"']+)["']/g;
 
-  for (const file of ['dist/index.js', 'dist/index.cjs']) {
+  // Every emitted file, not just the entry points: the ESM build splits `src/sign/**` — the
+  // module that held every `node:crypto` import — into a shared chunk, so scanning
+  // `dist/index.js` alone would miss exactly the highest-risk code.
+  const files = (await readdir(join(repoRoot, 'dist'))).filter(name => /\.(js|cjs)$/.test(name));
+  assert.ok(
+    files.some(name => name.startsWith('chunk-')),
+    `expected the build to emit chunks; got ${files.join(', ')}`
+  );
+
+  for (const file of files.map(name => join('dist', name))) {
     const source = await readFile(join(repoRoot, file), 'utf8');
     const offenders = [...source.matchAll(SPECIFIER)]
       .map(match => match[1])

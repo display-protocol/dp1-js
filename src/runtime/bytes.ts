@@ -139,12 +139,3 @@ export function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
   return true;
 }
-
-/** Locate a byte pattern, or -1. Used to pick fields out of DER key encodings. */
-export function indexOfBytes(haystack: Uint8Array, needle: Uint8Array): number {
-  outer: for (let i = 0; i + needle.length <= haystack.length; i++) {
-    for (let j = 0; j < needle.length; j++) if (haystack[i + j] !== needle[j]) continue outer;
-    return i;
-  }
-  return -1;
-}

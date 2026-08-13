@@ -231,6 +231,12 @@ The package imports no `node:*` module ([#9](https://github.com/display-protocol
 A Worker therefore needs neither `nodejs_compat` nor any particular compatibility date. Setting
 them does no harm, but nothing here requires them.
 
+**One browser caveat.** Builders call `crypto.randomUUID()` to mint document ids, and browsers
+expose it only in a [secure context](https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts)
+— HTTPS, or `localhost`. On a plain `http://` page served from anything else, every `build()`
+throws `dp1: crypto.randomUUID() is unavailable in this runtime`. Node and Workers are
+unaffected. Set the id yourself (`.id(...)`) if you must run on insecure origins.
+
 **Bytes in and out.** Anywhere the API accepted a `Buffer` it now accepts any `Uint8Array` —
 `Buffer` is a `Uint8Array` subclass, so existing Node callers are unaffected. Functions that
 returned a `Buffer` (notably `JcsTransform`) return a `Uint8Array` that still answers

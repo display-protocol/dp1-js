@@ -7,7 +7,6 @@ import {
   base64ToBytes,
   bytesEqual,
   bytesToBase64Url,
-  indexOfBytes,
   isBinary,
   toBytes,
   toText,
@@ -94,13 +93,4 @@ test('isBinary recognizes Buffer and Uint8Array, and nothing else', () => {
   for (const value of ['x', 1, null, undefined, {}, [], new ArrayBuffer(4)]) {
     assert.equal(isBinary(value), false, String(value));
   }
-});
-
-test('indexOfBytes finds patterns and reports absence', () => {
-  const haystack = Uint8Array.of(1, 2, 3, 4, 5);
-  assert.equal(indexOfBytes(haystack, Uint8Array.of(3, 4)), 2);
-  assert.equal(indexOfBytes(haystack, Uint8Array.of(1)), 0);
-  assert.equal(indexOfBytes(haystack, Uint8Array.of(5)), 4);
-  assert.equal(indexOfBytes(haystack, Uint8Array.of(4, 6)), -1);
-  assert.equal(indexOfBytes(haystack, Uint8Array.of(5, 6)), -1, 'must not run off the end');
 });
