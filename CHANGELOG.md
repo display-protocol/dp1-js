@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## Unreleased
+## 2.3.1 — 2026-08-13
 
 ### Fixed (validation runs on runtimes that forbid dynamic code generation)
 
