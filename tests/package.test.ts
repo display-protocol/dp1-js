@@ -1,7 +1,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, mkdir, rm, symlink } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -78,6 +78,81 @@ test('package root imports from ESM and CommonJS consumers', async () => {
       sandbox
     );
     assert.equal(cjs.status, 0, cjs.stderr);
+  } finally {
+    await rm(sandbox, { recursive: true, force: true });
+  }
+}, 60_000);
+
+// Regression guard for display-protocol/dp1-js#24. Ajv used to compile every schema with
+// `new Function(...)` on first validation, which throws on runtimes that forbid dynamic
+// codegen (Cloudflare Workers / workerd, Deno Deploy, CSP-restricted browsers) — a failure
+// no ordinary Node run can reproduce. `--disallow-code-generation-from-strings` makes V8
+// enforce the same rule here. The full workerd smoke test lives in
+// `scripts/workerd-smoke.mjs`.
+const NO_CODEGEN_SMOKE = `
+import assert from 'node:assert/strict';
+import {
+  ContractBuilder,
+  PlaylistBuilder,
+  PlaylistItemBuilder,
+  ProvenanceBuilder,
+  ParseAndValidatePlaylist,
+  ValidatePlaylist,
+} from 'dp1-js';
+
+assert.throws(() => new Function('return 1'), { name: 'EvalError' }, 'codegen should be blocked');
+
+const item = (standard) =>
+  new PlaylistItemBuilder()
+    .source('https://cdn.example/artwork.html')
+    .durationSeconds(30)
+    .provenance(
+      new ProvenanceBuilder().type('onChain').contract(
+        new ContractBuilder()
+          .chain('evm')
+          .standard(standard)
+          .address('0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d')
+          .tokenId('1')
+      )
+    );
+
+// Builders validate unsigned (requireSignatures: false), so this covers the derived variants.
+const playlist = new PlaylistBuilder().dpVersion('1.1.0').title('t').addItem(item('erc721')).build();
+assert.equal(playlist.items.length, 1);
+
+const signatures = [
+  {
+    alg: 'ed25519',
+    kid: 'did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK',
+    ts: '2025-01-01T00:00:00Z',
+    payload_hash: 'sha256:' + 'a'.repeat(64),
+    role: 'curator',
+    sig: 'A'.repeat(86),
+  },
+];
+ParseAndValidatePlaylist(JSON.stringify({ ...playlist, signatures }));
+ValidatePlaylist(JSON.stringify({ ...playlist, signatures }));
+
+// A rejection still carries the { path, message } details consumers read.
+assert.throws(
+  () => new PlaylistBuilder().dpVersion('1.1.0').title('t').addItem(item('erc721a')).build(),
+  (err) => {
+    assert.deepEqual(err.details, [
+      { path: '/standard', message: 'must be equal to one of the allowed values' },
+    ]);
+    return true;
+  }
+);
+`;
+
+test('validation runs where code generation from strings is disallowed', async () => {
+  ensureBuild();
+  const sandbox = await createConsumerSandbox();
+  try {
+    const smoke = join(sandbox, 'no-codegen.mjs');
+    await writeFile(smoke, NO_CODEGEN_SMOKE, 'utf8');
+    const result = runNode(['--disallow-code-generation-from-strings', smoke], sandbox);
+    assert.equal(result.status, 0, result.stderr);
   } finally {
     await rm(sandbox, { recursive: true, force: true });
   }

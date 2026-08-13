@@ -2,3 +2,5 @@ dist/
 coverage/
 node_modules/
 
+# Precompiled validators (npm run generate:validators, wired into prebuild/pretest)
+src/validate/generated/
