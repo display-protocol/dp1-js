@@ -9,7 +9,7 @@ Node.js SDK for the [DP-1 protocol](https://github.com/display-protocol/dp1), ke
 
 `dp1-js` provides parsing, validation, canonicalization, hashing, and signing helpers for DP-1 playlists, playlist groups, ref manifests, and Feral File channel documents.
 
-It ships dual ESM/CJS entrypoints through the package root and runs unmodified on Node.js 22+, browsers, and Cloudflare Workers from that single build — no `node:` imports, no runtime schema compilation (see [Runtime support](#runtime-support)).
+It ships dual ESM/CJS entrypoints through the package root and runs unmodified on Node.js 22.3+, browsers, and Cloudflare Workers from that single build — no `node:` imports, no runtime schema compilation (see [Runtime support](#runtime-support)).
 
 ## Features
 
@@ -193,13 +193,13 @@ Timezone rules (Playlist Extension §3.5.2):
 
 ## Runtime support
 
-One build runs on Node.js 22+, browsers, and Cloudflare Workers. Each target is verified by its
+One build runs on Node.js 22.3+, browsers, and Cloudflare Workers. Each target is verified by its
 own smoke test, because a green Node suite proves nothing about the other two — `new Function`
 is legal in Node and `node:*` resolves natively there.
 
 | Target                                     | Verified by                        |
 | ------------------------------------------ | ---------------------------------- |
-| Node.js 22+                                | the unit suite (`npm test`)        |
+| Node.js 22.3+                              | the unit suite (`npm test`)        |
 | Cloudflare Workers, **no** `nodejs_compat` | `npm run smoke:workerd`            |
 | Browsers under `script-src 'self'`         | `npm run smoke:browser` (Chromium) |
 
@@ -244,10 +244,32 @@ returned a `Buffer` (notably `JcsTransform`) return a `Uint8Array` that still an
 `Buffer.isBuffer()` on it is `false`; wrap it with `Buffer.from(...)` if some downstream API
 insists on the real thing.
 
-**Signing keys.** `SignMultiEd25519` and friends still accept Node `KeyObject`s, PEM, DER, and
-hex/base64 strings, and now also raw 32-byte keys — the natural shape for a browser or Worker
-that has no `KeyObject` to hand. Signatures are byte-identical to the previous `node:crypto`
-output, so `dp1-go` interoperability is unchanged.
+**Signing keys.** `SignMultiEd25519` and friends accept:
+
+| Form                                     | Notes                                     |
+| ---------------------------------------- | ----------------------------------------- |
+| raw 32 bytes (`Uint8Array`)              | the natural shape for a browser or Worker |
+| Node `KeyObject`                         | read via `key.export({ format: 'jwk' })`  |
+| JWK, bare or as `{ key, format: 'jwk' }` | `{ kty: 'OKP', crv: 'Ed25519', d, x }`    |
+| PEM / DER (PKCS#8 private, SPKI public)  | parsed structurally, unencrypted only     |
+| hex or base64 string                     | of the raw key or of the DER              |
+
+Signatures are byte-identical to the previous `node:crypto` output, so `dp1-go`
+interoperability is unchanged.
+
+Two forms need one extra line, because both are unreadable synchronously without Node:
+
+```js
+// Passphrase-protected keys: decrypt with Node first, then pass the KeyObject.
+const key = createPrivateKey({ key: encryptedPem, passphrase });
+
+// Web Crypto CryptoKey: export it, then pass the JWK.
+const jwk = await crypto.subtle.exportKey('jwk', cryptoKey);
+```
+
+Both throw an error naming the fix rather than failing obscurely. Decrypting PKCS#8 in-library
+would mean shipping PBKDF2 and AES for a Node-only input shape; `CryptoKey` can only be read
+through the async `subtle.exportKey`, which would force the whole signing API to become async.
 
 ### The dynamicQuery SSRF guard
 
@@ -346,7 +368,7 @@ Validators are generated from `src/schema/*.json` into `src/validate/generated/`
 
 ## Requirements
 
-- Node.js 22+
+- Node.js 22.3+
 - npm for dependency installation
 
 ## Notes

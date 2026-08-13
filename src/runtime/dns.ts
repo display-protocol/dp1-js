@@ -16,10 +16,24 @@
 /** One resolved address, shaped like a `dns.lookup(host, { all: true })` entry. */
 export type ResolvedAddress = { address: string; family: number };
 
-/** Resolve a hostname to every address it answers with. */
-export type HostResolver = (host: string) => Promise<ResolvedAddress[]>;
+/** Options passed to a resolver, matching the `dns.lookup` signature. */
+export type LookupOptions = { all: true };
 
-type NodeDns = { lookup?: (host: string, options: { all: true }) => Promise<ResolvedAddress[]> };
+/**
+ * Resolve a hostname to the addresses it answers with.
+ *
+ * Deliberately shaped so `dns.promises.lookup` can be injected *directly* — that is the whole
+ * point of documenting the seam as "shaped like `dns.lookup`". The options argument is passed
+ * on every call, and a resolver may answer with either an array or the single-address object
+ * `dns.lookup` returns when `all` is not honoured. A simpler `host => Promise<Address[]>`
+ * function is still assignable, since JavaScript lets a callback ignore trailing arguments.
+ */
+export type HostResolver = (
+  host: string,
+  options: LookupOptions
+) => Promise<ResolvedAddress[] | ResolvedAddress>;
+
+type NodeDns = { lookup?: HostResolver };
 type GetBuiltinModule = ((id: string) => unknown) | undefined;
 
 let cached: HostResolver | null | undefined;
@@ -52,7 +66,27 @@ function detect(): HostResolver | null {
   const lookup = dns?.lookup;
   if (typeof lookup !== 'function') return null;
 
-  return (host: string) => lookup.call(dns, host, { all: true });
+  return (host, options) => lookup.call(dns, host, options);
+}
+
+/**
+ * Call a resolver and normalize its answer to a list.
+ *
+ * Centralizes the two shapes `dns.lookup` can return so no call site has to know: an array
+ * when `{ all: true }` is honoured, or a bare `{ address, family }` when it is not. Treating
+ * the single-object form as "no addresses" would have failed every hostname open — it is a
+ * security check, so an unrecognized answer must be an error, never an empty pass.
+ */
+export async function resolveAddresses(
+  resolve: HostResolver,
+  host: string
+): Promise<ResolvedAddress[]> {
+  const answer = await resolve(host, { all: true });
+  if (Array.isArray(answer)) return answer;
+  if (answer && typeof answer === 'object' && typeof answer.address === 'string') return [answer];
+  throw new TypeError(
+    'resolver returned neither an address list nor an { address, family } object'
+  );
 }
 
 /** Test seam: forget the probe result so the next call re-detects. */

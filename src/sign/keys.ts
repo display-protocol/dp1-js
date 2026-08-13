@@ -25,7 +25,17 @@ import { base64ToBytes, hexToBytes, toText } from '../runtime/bytes.js';
 export type Ed25519KeyLike =
   | Uint8Array
   | string
-  | { export?: unknown; key?: unknown; type?: unknown; format?: unknown }
+  | {
+      export?: unknown;
+      key?: unknown;
+      type?: unknown;
+      format?: unknown;
+      passphrase?: unknown;
+      kty?: unknown;
+      crv?: unknown;
+      d?: unknown;
+      x?: unknown;
+    }
   | null
   | undefined;
 
@@ -60,18 +70,63 @@ function normalize(key: Ed25519KeyLike, kind: 'private' | 'public'): Uint8Array 
   if (typeof key === 'string') return fromString(key, kind);
 
   if (typeof key === 'object') {
+    // A Web Crypto CryptoKey is opaque; the only way out is `subtle.exportKey`, which is
+    // async and would break this synchronous API. Say so precisely instead of failing with
+    // "unsupported key type".
+    if (isCryptoKey(key)) {
+      throw keyError(
+        kind,
+        'a Web Crypto CryptoKey cannot be read synchronously; export it first with ' +
+          "`const jwk = await crypto.subtle.exportKey('jwk', key)` and pass the JWK"
+      );
+    }
     // A Node KeyObject. JWK is the only export format that hands back the raw scalar
     // directly, and it is defined for Ed25519 as `{ kty: 'OKP', crv: 'Ed25519', d, x }`.
     if (typeof (key as { export?: unknown }).export === 'function') {
       return fromKeyObject(key as { export: (options: { format: 'jwk' }) => unknown }, kind);
     }
+    // A bare JWK, or `{ key: jwk, format: 'jwk' }` unwrapped below.
+    if (isJwk(key)) return fromJwk(key as Jwk, kind);
     // A `{ key, format, type }` wrapper, as `createPrivateKey` accepts.
     if ('key' in key && key.key !== undefined && key.key !== key) {
+      if (key.passphrase !== undefined) throw encryptedKeyError(kind);
       return normalize(key.key as Ed25519KeyLike, kind);
     }
   }
 
   throw keyError(kind, `unsupported key type ${describe(key)}`);
+}
+
+/**
+ * Encrypted PKCS#8 needs PBKDF2 + AES to unwrap. Doing that here would mean a new cipher
+ * dependency for a Node-only input shape, so point at the one-line alternative instead: Node
+ * can decrypt it, and the resulting `KeyObject` is accepted.
+ */
+function encryptedKeyError(kind: 'private' | 'public'): Error {
+  return keyError(
+    kind,
+    'encrypted (passphrase-protected) keys are not supported directly; decrypt first with ' +
+      '`createPrivateKey({ key, passphrase })` and pass the resulting KeyObject'
+  );
+}
+
+/** A Web Crypto `CryptoKey`, by class where the global exists and by shape where it does not. */
+function isCryptoKey(value: object): boolean {
+  const CryptoKeyCtor = (globalThis as { CryptoKey?: unknown }).CryptoKey;
+  if (typeof CryptoKeyCtor === 'function' && value instanceof (CryptoKeyCtor as never)) return true;
+  const candidate = value as { algorithm?: unknown; extractable?: unknown; type?: unknown };
+  return (
+    typeof candidate.algorithm === 'object' &&
+    candidate.algorithm !== null &&
+    typeof candidate.extractable === 'boolean' &&
+    typeof candidate.type === 'string'
+  );
+}
+
+/** A JSON Web Key, as `createPrivateKey({ key, format: 'jwk' })` accepts. */
+function isJwk(value: object): boolean {
+  const candidate = value as Jwk;
+  return typeof candidate.kty === 'string' || typeof candidate.crv === 'string';
 }
 
 function fromKeyObject(
@@ -84,11 +139,16 @@ function fromKeyObject(
   } catch (err) {
     throw keyError(kind, `key.export({ format: 'jwk' }) failed: ${messageOf(err)}`);
   }
+  return fromJwk(jwk, kind);
+}
+
+function fromJwk(jwk: Jwk, kind: 'private' | 'public'): Uint8Array {
+  if (jwk?.kty && jwk.kty !== 'OKP') throw keyError(kind, `expected Ed25519, got kty ${jwk.kty}`);
   if (jwk?.crv && jwk.crv !== 'Ed25519') throw keyError(kind, `expected Ed25519, got ${jwk.crv}`);
-  // A private JWK carries `x` too; read `d` first so a private KeyObject stays private.
+  // A private JWK carries `x` too; read `d` first so a private key stays private.
   const encoded = kind === 'private' ? jwk?.d : jwk?.x;
   if (typeof encoded !== 'string')
-    throw keyError(kind, `JWK export has no "${kind === 'private' ? 'd' : 'x'}" parameter`);
+    throw keyError(kind, `JWK has no "${kind === 'private' ? 'd' : 'x'}" parameter`);
   return exact(base64ToBytes(encoded), kind);
 }
 
@@ -96,7 +156,10 @@ function fromString(value: string, kind: 'private' | 'public'): Uint8Array {
   const trimmed = value.trim();
   if (!trimmed) throw keyError(kind, 'empty key string');
 
-  if (trimmed.includes('-----BEGIN')) return fromEncodedBytes(pemToDer(trimmed, kind), kind);
+  if (trimmed.includes('-----BEGIN')) {
+    if (/-----BEGIN [^-]*ENCRYPTED/.test(trimmed)) throw encryptedKeyError(kind);
+    return fromEncodedBytes(pemToDer(trimmed, kind), kind);
+  }
 
   // Hex first: a 64-character raw key is valid base64 too, and hex is the intended reading.
   const hex = trimmed.replace(/^0x/, '');
@@ -181,7 +244,12 @@ function expectEd25519Algorithm(algorithm: Uint8Array, kind: 'private' | 'public
 /** PrivateKeyInfo (RFC 5208 / RFC 8410 §7): version, algorithm, privateKey OCTET STRING. */
 function parsePkcs8(bytes: Uint8Array): Uint8Array {
   const outer = new DerReader(bytes, 'private');
-  const body = new DerReader(outer.read(TAG_SEQUENCE), 'private');
+  const contents = outer.read(TAG_SEQUENCE);
+  // EncryptedPrivateKeyInfo (RFC 5958 §3) starts with an AlgorithmIdentifier SEQUENCE where
+  // PrivateKeyInfo starts with the version INTEGER. Name that case rather than reporting a
+  // confusing tag mismatch.
+  if (contents[0] === TAG_SEQUENCE) throw encryptedKeyError('private');
+  const body = new DerReader(contents, 'private');
   body.read(TAG_INTEGER); // version
   expectEd25519Algorithm(body.read(TAG_SEQUENCE), 'private');
   // The privateKey field wraps a CurvePrivateKey, itself an OCTET STRING of the 32-byte seed.

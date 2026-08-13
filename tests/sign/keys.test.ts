@@ -1,6 +1,12 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { generateKeyPairSync, sign as nodeSign, verify as nodeVerify } from 'node:crypto';
+import {
+  createPrivateKey,
+  generateKeyPairSync,
+  sign as nodeSign,
+  verify as nodeVerify,
+  webcrypto,
+} from 'node:crypto';
 import { ed25519 } from '@noble/curves/ed25519.js';
 import {
   decodeHexSignature,
@@ -190,6 +196,101 @@ test('a non-Ed25519 DER keypair from node:crypto is rejected', () => {
     () => ed25519PublicKeyBytes(p256.publicKey.export({ format: 'der', type: 'spki' })),
     /dp1: invalid ed25519 public key/
   );
+});
+
+// Key-option forms Node's `createPrivateKey` / `createPublicKey` accepted. The normalizer has
+// to keep taking them, or "the public API is unchanged" is not true for existing callers.
+
+test('JWK inputs are accepted, bare and wrapped', () => {
+  const privateJwk = privateKey.export({ format: 'jwk' });
+  const publicJwk = publicKey.export({ format: 'jwk' });
+
+  assert.deepEqual(Buffer.from(ed25519SecretKeyBytes(privateJwk)), RAW_SECRET);
+  assert.deepEqual(Buffer.from(ed25519PublicKeyBytes(publicJwk)), RAW_PUBLIC);
+  // `{ key: jwk, format: 'jwk' }`, the shape createPrivateKey documents.
+  assert.deepEqual(
+    Buffer.from(ed25519SecretKeyBytes({ key: privateJwk, format: 'jwk' })),
+    RAW_SECRET
+  );
+  assert.deepEqual(
+    Buffer.from(ed25519PublicKeyBytes({ key: publicJwk, format: 'jwk' })),
+    RAW_PUBLIC
+  );
+  // A private JWK read as a public key must yield the point, not the scalar.
+  assert.deepEqual(Buffer.from(ed25519PublicKeyBytes(privateJwk)), RAW_PUBLIC);
+});
+
+test('a JWK signs identically to the KeyObject it came from', async () => {
+  const expected = await SignMultiEd25519(RAW, privateKey, 'curator', '2025-01-01T00:00:00Z');
+  const jwk = privateKey.export({ format: 'jwk' });
+  assert.deepEqual(
+    await SignMultiEd25519(RAW, jwk as never, 'curator', '2025-01-01T00:00:00Z'),
+    expected
+  );
+});
+
+test('a non-Ed25519 JWK is rejected', () => {
+  const p256 = generateKeyPairSync('ec', { namedCurve: 'P-256' });
+  assert.throws(
+    () => ed25519SecretKeyBytes(p256.privateKey.export({ format: 'jwk' })),
+    /expected Ed25519/
+  );
+  assert.throws(
+    () => ed25519SecretKeyBytes({ kty: 'RSA', n: 'x', e: 'AQAB' } as never),
+    /expected Ed25519/
+  );
+  assert.throws(() => ed25519SecretKeyBytes({ kty: 'OKP', crv: 'Ed25519' }), /has no "d"/);
+});
+
+test('encrypted keys are named as such, with the decrypt-first fix', () => {
+  const encryptedPem = privateKey.export({
+    format: 'pem',
+    type: 'pkcs8',
+    cipher: 'aes-256-cbc',
+    passphrase: 'hunter2',
+  }) as string;
+  const encryptedDer = privateKey.export({
+    format: 'der',
+    type: 'pkcs8',
+    cipher: 'aes-256-cbc',
+    passphrase: 'hunter2',
+  });
+
+  // Not silently misparsed as plain DER, and not a bare "unsupported key type" either.
+  for (const [label, value] of [
+    ['encrypted PEM', encryptedPem],
+    ['encrypted DER', encryptedDer],
+    ['passphrase wrapper', { key: encryptedPem, format: 'pem', passphrase: 'hunter2' }],
+  ] as Array<[string, unknown]>) {
+    assert.throws(
+      () => ed25519SecretKeyBytes(value as never),
+      /encrypted \(passphrase-protected\) keys are not supported directly.*createPrivateKey/s,
+      label
+    );
+  }
+
+  // The documented workaround has to actually work.
+  const decrypted = createPrivateKey({ key: encryptedPem, passphrase: 'hunter2' });
+  assert.deepEqual(Buffer.from(ed25519SecretKeyBytes(decrypted)), RAW_SECRET);
+});
+
+test('a Web Crypto CryptoKey is named as such, with the export-first fix', async () => {
+  const pair = (await webcrypto.subtle.generateKey({ name: 'Ed25519' }, true, [
+    'sign',
+    'verify',
+  ])) as unknown as CryptoKeyPair;
+
+  assert.throws(
+    () => ed25519SecretKeyBytes(pair.privateKey as never),
+    /CryptoKey cannot be read synchronously.*exportKey/s
+  );
+
+  // The documented workaround has to actually work, and produce a usable signing key.
+  const jwk = await webcrypto.subtle.exportKey('jwk', pair.privateKey);
+  const seed = ed25519SecretKeyBytes(jwk as never);
+  assert.equal(seed.length, 32);
+  const sig = await SignMultiEd25519(RAW, jwk as never, 'curator', '2025-01-01T00:00:00Z');
+  assert.doesNotThrow(() => VerifyMultiEd25519(RAW, sig));
 });
 
 test('decodeHexSignature accepts hex forms and answers empty for the rest', () => {

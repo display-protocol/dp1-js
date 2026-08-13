@@ -4,7 +4,12 @@ import {
   PlaylistItemsFromDynamicQuery,
   ErrDynamicQueryEndpointPolicy,
 } from '../../src/playlist/index.js';
-import { platformResolver, resetPlatformResolver } from '../../src/runtime/dns.js';
+import { lookup as nodeLookup } from 'node:dns/promises';
+import {
+  platformResolver,
+  resetPlatformResolver,
+  resolveAddresses,
+} from '../../src/runtime/dns.js';
 
 // The dynamic-query SSRF guard resolves the endpoint host and rejects private addresses.
 // `dns.lookup` has no browser or Workers equivalent, so the resolver became a seam: injected
@@ -53,16 +58,84 @@ afterEach(() => resetPlatformResolver());
 test('Node finds a platform resolver automatically, with no node: import', async () => {
   const resolve = platformResolver();
   assert.ok(resolve, 'Node 22.3+ should expose dns via process.getBuiltinModule');
-  const addrs = await resolve('localhost');
+  const addrs = await resolveAddresses(resolve, 'localhost');
   assert.ok(addrs.length > 0);
   assert.ok(addrs.every(a => typeof a.address === 'string' && typeof a.family === 'number'));
+});
+
+// The README documents `client.lookup` as "shaped like dns.lookup(host, { all: true })", so
+// handing it `dns.promises.lookup` verbatim has to work. It previously did not: the seam
+// called `resolve(host)` with no options, so Node answered with a single { address, family }
+// object rather than an array, and every hostname failed with "host has no addresses".
+
+test('dns.promises.lookup can be injected verbatim', async () => {
+  const addrs = await resolveAddresses(nodeLookup, 'localhost');
+  assert.ok(Array.isArray(addrs), 'expected an address list');
+  assert.ok(addrs.length > 0);
+  assert.ok(addrs.every(a => typeof a.address === 'string' && typeof a.family === 'number'));
+});
+
+test('the seam requests every address, not just the first', async () => {
+  // `{ all: true }` is a security requirement, not a shape detail: without it `dns.lookup`
+  // answers with a single address, so a host publishing both a public and a private record
+  // would have the private one go unchecked.
+  let received: unknown;
+  const resolve = async (_host: string, options: { all: true }) => {
+    received = options;
+    return [
+      { address: '93.184.216.34', family: 4 },
+      { address: '10.0.0.1', family: 4 },
+    ];
+  };
+  const addrs = await resolveAddresses(resolve, 'feed.example.com');
+  assert.deepEqual(received, { all: true }, 'the resolver must be asked for all addresses');
+  assert.equal(addrs.length, 2, 'every address must reach the range check');
+});
+
+test('a resolver that ignores { all: true } is still read correctly', async () => {
+  // Some resolvers answer with the bare single-address object. Reading that as "no addresses"
+  // would fail the check open on the next call that happened to return one.
+  const single = async () => ({ address: '93.184.216.34', family: 4 });
+  assert.deepEqual(await resolveAddresses(single, 'feed.example.com'), [
+    { address: '93.184.216.34', family: 4 },
+  ]);
+});
+
+test('an unreadable resolver answer is an error, never an empty pass', async () => {
+  for (const answer of [null, undefined, 'nope', 42, {}]) {
+    await assert.rejects(
+      () => resolveAddresses((async () => answer) as never, 'feed.example.com'),
+      TypeError,
+      JSON.stringify(answer)
+    );
+  }
+});
+
+test('an injected dns.promises.lookup enforces the private-address check end to end', async () => {
+  // localhost resolves to loopback, so the guard must reject it — proving the injected
+  // resolver is genuinely driving policy, not just being called.
+  const client = { ...okFetch(), lookup: nodeLookup };
+  await assert.rejects(
+    () =>
+      PlaylistItemsFromDynamicQuery(
+        undefined,
+        { ...DQ, endpoint: 'https://localhost/artworks' },
+        {},
+        client,
+        null
+      ),
+    (err: Error) => err.message.startsWith(ErrDynamicQueryEndpointPolicy.message)
+  );
+  assert.deepEqual(client.calls, [], 'the guard must run before the request');
 });
 
 test('an injected resolver overrides the platform one', async () => {
   const seen: string[] = [];
   const client = {
     ...okFetch(),
-    lookup: async (host: string) => {
+    lookup: async (host: string, options: { all: true }) => {
+      // The seam must pass the dns.lookup options through on every call.
+      assert.deepEqual(options, { all: true });
       seen.push(host);
       return [{ address: '93.184.216.34', family: 4 }];
     },

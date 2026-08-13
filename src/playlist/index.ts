@@ -1,6 +1,11 @@
 import { PlaylistItemWithPlaylistsExtension } from '../validate/index.js';
 import { isIP } from '../runtime/ip.js';
-import { platformResolver, type HostResolver, type ResolvedAddress } from '../runtime/dns.js';
+import {
+  platformResolver,
+  resolveAddresses,
+  type HostResolver,
+  type ResolvedAddress,
+} from '../runtime/dns.js';
 import { toText, utf8ToBytes } from '../runtime/bytes.js';
 
 export {
@@ -186,7 +191,7 @@ function endpointIPAllowedProduction(addr: NetAddressLike) {
 async function validateDNSHostProduction(resolve: HostResolver, host: string) {
   let addrs: ResolvedAddress[];
   try {
-    addrs = await resolve(host);
+    addrs = await resolveAddresses(resolve, host);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     throw new Error(`${ErrDynamicQueryEndpointPolicy.message}: host lookup failed: ${message}`);
