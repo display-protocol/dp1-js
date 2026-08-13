@@ -184,11 +184,11 @@ export const PlaylistItem = (data: Buffer | string | unknown) =>
   validate(`${playlist.$id}#/$defs/PlaylistItem`, data);
 export const parsePlaylistItem = PlaylistItem;
 /**
- * Core PlaylistItem + playlists-extension overlay (note / displayAt). Used by dynamicQuery.
+ * Core PlaylistItem + the playlists-extension overlay (note / displayAt / inlineManifest).
+ * Used by dynamicQuery.
  *
- * Note: the composed schema mirrors the spec file, which does not (yet) carry
- * `inlineManifest`. Builders validate a nested manifest with `RefManifest` directly;
- * playlist-level validation covers it through the extension fragment.
+ * The overlay is a single `$defs/PlaylistItemExtension` shared with the playlist-level
+ * composed schema, so both validation paths enforce the same per-item fields.
  */
 export const PlaylistItemWithPlaylistsExtension = (data: Buffer | string | unknown) =>
   validate(playlistItemWithExt.$id, data);

@@ -63,16 +63,29 @@ test('PlaylistItemBuilder carries an inline ref manifest', () => {
   assert.match(item.inlineManifest?.id ?? '', /^[0-9a-f-]{36}$/i);
 });
 
-test('PlaylistItemBuilder validates a raw inline manifest against the core schema', () => {
-  assert.throws(
-    () =>
-      new PlaylistItemBuilder()
-        .source('https://example.com/a.html')
-        // `locale` is required by the ref-manifest schema.
-        .inlineManifest({ refVersion: '0.1.0', id: 'r', created: '2025-01-01T00:00:00Z' } as never)
-        .build(),
-    isValidationError
-  );
+test('PlaylistItemBuilder rejects a malformed raw inline manifest', () => {
+  for (const manifest of [
+    // `locale` is required by the ref-manifest schema.
+    { refVersion: '0.1.0', id: 'r', created: '2025-01-01T00:00:00Z' },
+    { refVersion: 'nope', id: 'r', created: '2025-01-01T00:00:00Z', locale: 'en' },
+    {
+      refVersion: '0.1.0',
+      id: 'r',
+      created: '2025-01-01T00:00:00Z',
+      locale: 'en',
+      metadata: { thumbnails: { default: { uri: 'https://example.com/t.jpg', w: 0 } } },
+    },
+  ]) {
+    assert.throws(
+      () =>
+        new PlaylistItemBuilder()
+          .source('https://example.com/a.html')
+          .inlineManifest(manifest as never)
+          .build(),
+      isValidationError,
+      JSON.stringify(manifest)
+    );
+  }
 });
 
 test('PlaylistItemBuilder rejects invalid displayAt', () => {

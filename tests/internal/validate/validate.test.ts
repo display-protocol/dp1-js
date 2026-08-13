@@ -535,6 +535,33 @@ test('PlaylistWithPlaylistsExtension_validatesItemInlineManifest', () => {
   }
 });
 
+test('PlaylistItemWithPlaylistsExtension_enforcesInlineManifest', () => {
+  // The single-item overlay shares $defs/PlaylistItemExtension with the playlist-level
+  // schema, so a nested manifest is checked on this path too (display-protocol/dp1#45).
+  assert.doesNotThrow(() =>
+    PlaylistItemWithPlaylistsExtension(
+      Buffer.from(JSON.stringify({ source: 'https://a', inlineManifest: sampleManifest }))
+    )
+  );
+  for (const manifest of [
+    { ...sampleManifest, locale: undefined },
+    { ...sampleManifest, refVersion: 'nope' },
+    {
+      ...sampleManifest,
+      metadata: { thumbnails: { default: { uri: 'https://example.com/t.jpg', w: 0 } } },
+    },
+  ]) {
+    assert.throws(
+      () =>
+        PlaylistItemWithPlaylistsExtension(
+          Buffer.from(JSON.stringify({ source: 'https://a', inlineManifest: manifest }))
+        ),
+      err => err instanceof Error && err.cause === ErrValidation,
+      JSON.stringify(manifest)
+    );
+  }
+});
+
 test('RefManifest_i18nTakesLocalizedMetadata', () => {
   assert.doesNotThrow(() =>
     RefManifest(

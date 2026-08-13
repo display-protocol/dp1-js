@@ -16,7 +16,6 @@ import type { ReproBuilder } from './repro.js';
 import {
   PlaylistItem as ValidatePlaylistItem,
   PlaylistItemWithPlaylistsExtension as ValidatePlaylistItemWithExt,
-  RefManifest as ValidateRefManifest,
 } from '../validate/index.js';
 
 export class PlaylistItemBuilder {
@@ -116,14 +115,11 @@ export class PlaylistItemBuilder {
         : { inlineManifest: this.item.inlineManifest }),
     };
 
-    if (out.note !== undefined || out.displayAt !== undefined) {
+    if (out.note !== undefined || out.displayAt !== undefined || out.inlineManifest !== undefined) {
       ValidatePlaylistItemWithExt(out);
     } else {
       ValidatePlaylistItem(out);
     }
-    // The composed single-item schema mirrors the spec file, which carries no
-    // `inlineManifest`, so validate the nested manifest against the core schema here.
-    if (out.inlineManifest !== undefined) ValidateRefManifest(out.inlineManifest);
     return structuredClone(out);
   }
 }
