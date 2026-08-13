@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+## 2.3.0 — 2026-08-13
+
 ### Changed (loosening: `Thumbnail.w` / `Thumbnail.h` optional)
 
 - `Thumbnail` now requires only `uri`; `w` and `h` are optional, matching the relaxed core ref-manifest schema ([display-protocol/dp1#44](https://github.com/display-protocol/dp1/pull/44)). A producer holding a bare thumbnail URL omits the dimensions rather than guessing them. When present they are still validated as integers ≥ 1, and `sha256` is unchanged. This is a loosening only — every document that validated before still validates — but it moves in the opposite direction from the 2.1.0 tightening, so a consumer that has been reading `thumbnail.w` unguarded since then must now treat both dimensions as possibly absent. The `Thumbnail` TypeScript type reflects this (`w?: number`, `h?: number`), so `tsc` will point at the unguarded reads.
