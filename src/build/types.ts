@@ -222,6 +222,22 @@ export interface LocalizedMetadata {
   creditLine?: string;
 }
 
+/**
+ * `LocalizedMetadata` at a write boundary, with the `Metadata`-only fields closed off.
+ *
+ * Needed because `LocalizedMetadata`'s fields are all optional, which makes `Metadata`
+ * structurally assignable to it. TypeScript's excess-property check fires only on fresh
+ * object literals, so `i18n({ fr: someMetadataVariable })` would otherwise compile even
+ * though `artists` / `tags` / `thumbnails` have no localized meaning in the schema. The
+ * `never` fields are guards, not schema fields — `LocalizedMetadata` above is the model
+ * that mirrors `$defs/LocalizedMetadata`.
+ */
+export type LocalizedMetadataOverride = LocalizedMetadata & {
+  artists?: never;
+  tags?: never;
+  thumbnails?: never;
+};
+
 export interface DisplayControls {
   scaling?: DisplayScaling;
   margin?: Margin;
@@ -249,7 +265,7 @@ export interface RefManifest {
   locale: string;
   metadata?: Metadata;
   controls?: Controls;
-  i18n?: Record<string, LocalizedMetadata>;
+  i18n?: Record<string, LocalizedMetadataOverride>;
 }
 
 // Channel document (channels extension)

@@ -126,6 +126,7 @@ export type {
   Artist,
   Metadata,
   LocalizedMetadata,
+  LocalizedMetadataOverride,
   Controls,
   SafetyControls,
   LicenseMode,
