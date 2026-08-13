@@ -1,6 +1,10 @@
 import { generateId, nowIso, resolve } from './helpers.js';
-import type { Controls, Metadata, RefManifest } from './types.js';
-import type { ControlsBuilder, MetadataBuilder } from './ref-manifest-blocks.js';
+import type { Controls, LocalizedMetadataOverride, Metadata, RefManifest } from './types.js';
+import type {
+  ControlsBuilder,
+  LocalizedMetadataBuilder,
+  MetadataBuilder,
+} from './ref-manifest-blocks.js';
 import { RefManifest as ValidateRefManifest } from '../validate/index.js';
 
 export class RefManifestBuilder {
@@ -36,8 +40,22 @@ export class RefManifestBuilder {
     return this;
   }
 
-  i18n(value: Record<string, Metadata>) {
-    this.doc.i18n = value;
+  /**
+   * Localized text overrides keyed by locale. Values are `LocalizedMetadata`
+   * (title / description / creditLine), not a full `Metadata` block.
+   */
+  i18n(values: Record<string, LocalizedMetadataOverride | LocalizedMetadataBuilder>) {
+    const out: Record<string, LocalizedMetadataOverride> = {};
+    for (const [locale, value] of Object.entries(values)) {
+      out[locale] = resolve(value);
+    }
+    this.doc.i18n = out;
+    return this;
+  }
+
+  addLocalized(locale: string, value: LocalizedMetadataOverride | LocalizedMetadataBuilder) {
+    if (!this.doc.i18n) this.doc.i18n = {};
+    this.doc.i18n[locale] = resolve(value);
     return this;
   }
 

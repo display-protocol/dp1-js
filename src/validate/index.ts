@@ -183,7 +183,13 @@ export const PlaylistsExtensionFragment = (data: Buffer | string | unknown) =>
 export const PlaylistItem = (data: Buffer | string | unknown) =>
   validate(`${playlist.$id}#/$defs/PlaylistItem`, data);
 export const parsePlaylistItem = PlaylistItem;
-/** Core PlaylistItem + playlists-extension overlay (note / displayAt). Used by dynamicQuery. */
+/**
+ * Core PlaylistItem + the playlists-extension overlay (note / displayAt / inlineManifest).
+ * Used by dynamicQuery.
+ *
+ * The overlay is a single `$defs/PlaylistItemExtension` shared with the playlist-level
+ * composed schema, so both validation paths enforce the same per-item fields.
+ */
 export const PlaylistItemWithPlaylistsExtension = (data: Buffer | string | unknown) =>
   validate(playlistItemWithExt.$id, data);
 
@@ -221,6 +227,9 @@ export const Artist = (data: Buffer | string | unknown) =>
   validate(`${refManifest.$id}#/$defs/Artist`, data);
 export const Metadata = (data: Buffer | string | unknown) =>
   validate(`${refManifest.$id}#/$defs/Metadata`, data);
+/** Localized text overrides under `i18n` (title / description / creditLine only). */
+export const LocalizedMetadata = (data: Buffer | string | unknown) =>
+  validate(`${refManifest.$id}#/$defs/LocalizedMetadata`, data);
 export const Controls = (data: Buffer | string | unknown) =>
   validate(`${refManifest.$id}#/$defs/Controls`, data);
 export const DisplayControls = (data: Buffer | string | unknown) =>

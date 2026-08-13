@@ -93,6 +93,12 @@ export interface PlaylistItem {
   note?: Note;
   /** Playlists extension overlay (release schedule). */
   displayAt?: string;
+  /**
+   * Playlists extension overlay (§3.6): a full Ref Manifest carried inline instead of
+   * behind `ref`. Same schema and validation as a ref-fetched manifest; when both are
+   * present, `ref` wins.
+   */
+  inlineManifest?: RefManifest;
 }
 
 export interface Defaults {
@@ -184,8 +190,10 @@ export interface DynamicQuery {
 
 export interface Thumbnail {
   uri: string;
-  w: number;
-  h: number;
+  /** Intrinsic width in pixels. Optional: omitted when the producer only holds a bare URL. */
+  w?: number;
+  /** Intrinsic height in pixels. Optional: omitted when the producer only holds a bare URL. */
+  h?: number;
   sha256?: string;
 }
 
@@ -203,6 +211,32 @@ export interface Metadata {
   tags?: string[];
   thumbnails?: Record<string, Thumbnail>;
 }
+
+/**
+ * Localized text overrides carried under `i18n`. Narrower than `Metadata`:
+ * the schema localizes only these three fields.
+ */
+export interface LocalizedMetadata {
+  title?: string;
+  description?: string;
+  creditLine?: string;
+}
+
+/**
+ * `LocalizedMetadata` at a write boundary, with the `Metadata`-only fields closed off.
+ *
+ * Needed because `LocalizedMetadata`'s fields are all optional, which makes `Metadata`
+ * structurally assignable to it. TypeScript's excess-property check fires only on fresh
+ * object literals, so `i18n({ fr: someMetadataVariable })` would otherwise compile even
+ * though `artists` / `tags` / `thumbnails` have no localized meaning in the schema. The
+ * `never` fields are guards, not schema fields — `LocalizedMetadata` above is the model
+ * that mirrors `$defs/LocalizedMetadata`.
+ */
+export type LocalizedMetadataOverride = LocalizedMetadata & {
+  artists?: never;
+  tags?: never;
+  thumbnails?: never;
+};
 
 export interface DisplayControls {
   scaling?: DisplayScaling;
@@ -231,7 +265,7 @@ export interface RefManifest {
   locale: string;
   metadata?: Metadata;
   controls?: Controls;
-  i18n?: Record<string, Metadata>;
+  i18n?: Record<string, LocalizedMetadataOverride>;
 }
 
 // Channel document (channels extension)

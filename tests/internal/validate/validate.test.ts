@@ -382,11 +382,31 @@ test('RefManifest_acceptsMetadataWithThumbnail', () => {
   );
 });
 
-test('RefManifest_rejectsThumbnailMissingDimensions', () => {
-  assert.throws(() =>
+test('RefManifest_acceptsThumbnailWithoutDimensions', () => {
+  assert.doesNotThrow(() =>
     RefManifest(
       Buffer.from(
         '{"refVersion":"0.1.0","id":"r","created":"2025-01-01T00:00:00Z","locale":"en","metadata":{"thumbnails":{"default":{"uri":"https://example.com/t.jpg"}}}}'
+      )
+    )
+  );
+});
+
+test('RefManifest_rejectsThumbnailMissingUri', () => {
+  assert.throws(() =>
+    RefManifest(
+      Buffer.from(
+        '{"refVersion":"0.1.0","id":"r","created":"2025-01-01T00:00:00Z","locale":"en","metadata":{"thumbnails":{"default":{"w":320,"h":180}}}}'
+      )
+    )
+  );
+});
+
+test('RefManifest_rejectsNonPositiveThumbnailDimensions', () => {
+  assert.throws(() =>
+    RefManifest(
+      Buffer.from(
+        '{"refVersion":"0.1.0","id":"r","created":"2025-01-01T00:00:00Z","locale":"en","metadata":{"thumbnails":{"default":{"uri":"https://example.com/t.jpg","w":0,"h":180}}}}'
       )
     )
   );
@@ -469,5 +489,91 @@ test('PlaylistItemWithPlaylistsExtension_OK_and_displayAt', () => {
         Buffer.from('{"source":"https://example.com/a","displayAt":123}')
       ),
     err => err instanceof Error && err.cause === ErrValidation
+  );
+});
+
+const sampleManifest = {
+  refVersion: '0.1.0',
+  id: 'r',
+  created: '2025-01-01T00:00:00Z',
+  locale: 'en',
+  metadata: { title: 'Work', thumbnails: { default: { uri: 'https://example.com/t.jpg' } } },
+};
+
+test('PlaylistWithPlaylistsExtension_validatesItemInlineManifest', () => {
+  assert.doesNotThrow(() =>
+    PlaylistWithPlaylistsExtension(
+      signedPlaylist({
+        dpVersion: '1.1.0',
+        title: 'x',
+        items: [{ source: 'https://a', inlineManifest: sampleManifest }],
+      })
+    )
+  );
+  // The nested manifest is held to the core ref-manifest schema: `locale` is required,
+  // and a malformed thumbnail inside it fails the whole playlist.
+  for (const manifest of [
+    { ...sampleManifest, locale: undefined },
+    { ...sampleManifest, refVersion: 'nope' },
+    {
+      ...sampleManifest,
+      metadata: { thumbnails: { default: { uri: 'https://example.com/t.jpg', w: 0 } } },
+    },
+  ]) {
+    assert.throws(
+      () =>
+        PlaylistWithPlaylistsExtension(
+          signedPlaylist({
+            dpVersion: '1.1.0',
+            title: 'x',
+            items: [{ source: 'https://a', inlineManifest: manifest }],
+          })
+        ),
+      err => err instanceof Error && err.cause === ErrValidation,
+      JSON.stringify(manifest)
+    );
+  }
+});
+
+test('PlaylistItemWithPlaylistsExtension_enforcesInlineManifest', () => {
+  // The single-item overlay shares $defs/PlaylistItemExtension with the playlist-level
+  // schema, so a nested manifest is checked on this path too (display-protocol/dp1#45).
+  assert.doesNotThrow(() =>
+    PlaylistItemWithPlaylistsExtension(
+      Buffer.from(JSON.stringify({ source: 'https://a', inlineManifest: sampleManifest }))
+    )
+  );
+  for (const manifest of [
+    { ...sampleManifest, locale: undefined },
+    { ...sampleManifest, refVersion: 'nope' },
+    {
+      ...sampleManifest,
+      metadata: { thumbnails: { default: { uri: 'https://example.com/t.jpg', w: 0 } } },
+    },
+  ]) {
+    assert.throws(
+      () =>
+        PlaylistItemWithPlaylistsExtension(
+          Buffer.from(JSON.stringify({ source: 'https://a', inlineManifest: manifest }))
+        ),
+      err => err instanceof Error && err.cause === ErrValidation,
+      JSON.stringify(manifest)
+    );
+  }
+});
+
+test('RefManifest_i18nTakesLocalizedMetadata', () => {
+  assert.doesNotThrow(() =>
+    RefManifest(
+      Buffer.from(
+        JSON.stringify({
+          ...sampleManifest,
+          i18n: { fr: { title: 'Œuvre', description: 'Une description', creditLine: 'Crédit' } },
+        })
+      )
+    )
+  );
+  assert.throws(() =>
+    RefManifest(Buffer.from(JSON.stringify({ ...sampleManifest, i18n: { fr: { title: 42 } } })))
   );
 });

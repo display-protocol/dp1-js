@@ -29,7 +29,10 @@ function hasPlaylistsExtensionFields(doc: Playlist): boolean {
   ) {
     return true;
   }
-  return doc.items.some(item => item.note !== undefined || item.displayAt !== undefined);
+  return doc.items.some(
+    item =>
+      item.note !== undefined || item.displayAt !== undefined || item.inlineManifest !== undefined
+  );
 }
 
 export class PlaylistBuilder {

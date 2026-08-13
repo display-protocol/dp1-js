@@ -3,6 +3,7 @@ import type {
   Artist,
   Controls,
   DisplayControls,
+  LocalizedMetadata,
   Metadata,
   SafetyControls,
   Thumbnail,
@@ -11,6 +12,7 @@ import type { DisplayControlsBuilder } from './display.js';
 import {
   Artist as ValidateArtist,
   Controls as ValidateControls,
+  LocalizedMetadata as ValidateLocalizedMetadata,
   Metadata as ValidateMetadata,
   SafetyControls as ValidateSafetyControls,
   Thumbnail as ValidateThumbnail,
@@ -34,11 +36,12 @@ export class ThumbnailBuilder {
     this.t.sha256 = value;
     return this;
   }
+  /** `w` / `h` are optional per DP-1: omitted rather than guessed when unset. */
   build(): Thumbnail {
     const out: Thumbnail = {
       uri: String(this.t.uri ?? ''),
-      w: this.t.w as number,
-      h: this.t.h as number,
+      ...(this.t.w === undefined ? {} : { w: this.t.w }),
+      ...(this.t.h === undefined ? {} : { h: this.t.h }),
       ...(this.t.sha256 === undefined ? {} : { sha256: String(this.t.sha256) }),
     };
     ValidateThumbnail(out);
@@ -106,9 +109,40 @@ export class MetadataBuilder {
     this.m.thumbnails = out;
     return this;
   }
+  /** Add one size-keyed thumbnail (`small`, `large`, `xlarge`, `default`, or any other key). */
+  addThumbnail(key: string, value: Thumbnail | ThumbnailBuilder) {
+    if (!this.m.thumbnails) this.m.thumbnails = {};
+    this.m.thumbnails[key] = resolve(value);
+    return this;
+  }
   build(): Metadata {
     const out: Metadata = structuredClone(this.m);
     ValidateMetadata(out);
+    return out;
+  }
+}
+
+/**
+ * Localized text overrides for one locale, carried under a manifest's `i18n` map.
+ * Only `title`, `description`, and `creditLine` are localizable.
+ */
+export class LocalizedMetadataBuilder {
+  private l: LocalizedMetadata = {};
+  title(value: string) {
+    this.l.title = value;
+    return this;
+  }
+  description(value: string) {
+    this.l.description = value;
+    return this;
+  }
+  creditLine(value: string) {
+    this.l.creditLine = value;
+    return this;
+  }
+  build(): LocalizedMetadata {
+    const out: LocalizedMetadata = structuredClone(this.l);
+    ValidateLocalizedMetadata(out);
     return out;
   }
 }

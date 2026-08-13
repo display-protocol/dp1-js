@@ -176,24 +176,41 @@ Timezone rules (Playlist Extension §3.5.2):
 - `parseDP1Playlist(json)` returns a `{ playlist, error }` result for already-parsed JSON input (shape-only; not full schema).
 - `ValidatePlaylist(data, options?)` runs AJV against the core playlist schema. `requireSignatures` defaults to `true`; set `false` for unsigned drafts. Accepts `Buffer`, JSON string, or a parsed object.
 - `ValidatePlaylistGroup`, `ValidateChannel`, and `ValidatePlaylistWithPlaylistsExtension` use the same `requireSignatures` option.
-- Leaf helpers such as `ValidateNote`, `ValidateEntity`, `ValidateDisplayPrefs`, `ValidateProvenanceBlock`, and `ValidateRefManifest` run AJV against the matching schema / `$defs` (builders use these on `build()`).
+- Leaf helpers such as `ValidateNote`, `ValidateEntity`, `ValidateDisplayPrefs`, `ValidateProvenanceBlock`, `ValidateLocalizedMetadata`, and `ValidateRefManifest` run AJV against the matching schema / `$defs` (builders use these on `build()`).
+- `PlaylistItemBuilder` carries the playlists-extension item fields: `.note()`, `.displayAt()`, and `.inlineManifest(manifest | RefManifestBuilder)`. Setting any of them validates the item against the composed core + extension schema instead of core alone, so a malformed inline manifest fails at `build()`.
+- `RefManifestBuilder` covers the whole manifest: `.metadata(MetadataBuilder)`, `.controls(ControlsBuilder)`, and `.i18n({ locale: LocalizedMetadataBuilder })` / `.addLocalized(locale, …)`. The `i18n` write sites take `LocalizedMetadataOverride` — `LocalizedMetadata` with `artists` / `tags` / `thumbnails` closed off — so a full `Metadata` value cannot stand in for a locale override; reading back gives you a plain `LocalizedMetadata`. `MetadataBuilder` has `.artists()` / `.addArtist()` and `.thumbnails()` / `.addThumbnail(key, …)`; `LocalizedMetadataBuilder` covers the three localizable fields (`title`, `description`, `creditLine`).
 - Leaf builders (`NoteBuilder`, `DisplayPrefsBuilder`, …) and document builders (`PlaylistBuilder`, `PlaylistGroupBuilder`, `ChannelBuilder`, `RefManifestBuilder`, `PlaylistItemBuilder`) are exported from the package root. Builder `Playlist`/`PlaylistItem` draft shapes stay internal to avoid colliding with the looser parse types exported as `Playlist` / `PlaylistItem`.
 - `ParseAndValidatePlaylist(data)` and `ParseAndValidateChannel(data)` accept raw JSON as `Buffer` or string and require signatures (multi-sig or legacy).
 - `signDP1Playlist(raw, privateKey)` returns a legacy `ed25519:<hex>` signature string for v1.0.x playlists.
 - `verifyPlaylistSignature(raw, signature, publicKey)` throws if verification fails.
 - `SignMultiEIP191(raw, privateKey, chainID, role, ts)` signs with `personal_sign` semantics and emits the Ethereum-standard 65-byte `r || s || v` signature (`v` = 27/28), base64url-encoded, with a `did:pkh:eip155:<chainID>:<address>` `kid`. Verification accepts `v` of either 27/28 (wallets) or 0/1 (`dp1-go`), so signatures interoperate with wallets and the Go reference in both directions.
 - `ParseDPVersion(version)` is available for version parsing and major-version checks.
-- `DisplayForItem(def, ref, item)` merges display preferences using the same field-level overlay order as `dp1-go`.
+- `DisplayForItem(def, ref, item)` merges display preferences using the same field-level overlay order as `dp1-go`. It takes a single manifest slot, so with both `ref` and `inlineManifest` present the caller chooses which to pass; the spec's order is `defaults → inlineManifest → ref → item.local`, so to honour it fully, call once with the inline manifest and again with the fetched one, feeding the first result forward as `def`.
 - `parseDisplayAt(displayAt, localTimezone?)` parses item release times with the timezone rules above; throws on malformed input.
 - `parseDisplayAtNanoseconds(displayAt, localTimezone?)` returns the exact epoch nanoseconds used by the scheduler; use it when sub-millisecond release times matter.
 - `computeActiveSet(playlist, now, localTimezone?)` activates `displayAt` scheduling whenever at least one item has that field; otherwise it returns all items. `now` accepts a `Date` (millisecond precision) or epoch-nanoseconds `bigint` for exact sub-millisecond scheduling. Unresolvable `displayAt` values are skipped.
 - `nextDisplayAt(playlist, now, localTimezone?)` returns the soonest future resolvable `displayAt`. With `bigint` `now`, it returns epoch nanoseconds; with `Date` `now`, it returns a `Date` rounded up to avoid early timers.
 
-## Validation parity with dp1-go
+## Schema provenance and parity
 
-Embedded JSON Schema files under `src/schema/` are kept in sync with [`display-protocol/dp1-go`](https://github.com/display-protocol/dp1-go) (`internal/schema/`). Payloads that passed validation under older, looser schemas may now fail — for example invalid `license` values, provenance blocks without `type`, or ref-manifest thumbnails missing required dimensions.
+Embedded JSON Schema files under `src/schema/` track the specification repository, [`display-protocol/dp1`](https://github.com/display-protocol/dp1) — `core/v1.1.0/schemas/` and `extensions/` — and are kept byte-identical to it. Payloads that passed validation under older, looser schemas may fail — for example invalid `license` values or provenance blocks without `type`.
+
+**Parity with dp1-go is currently partial.** The Go SDK's `internal/schema/` has not yet picked up two spec changes that this SDK has, so the two implementations disagree on these cases:
+
+| Case                                          | dp1-js   | dp1-go                                 |
+| :-------------------------------------------- | :------- | :------------------------------------- |
+| `Thumbnail` with `uri` only, no `w` / `h`     | accepted | rejected (`required: ["uri","w","h"]`) |
+| Single item with a malformed `inlineManifest` | rejected | accepted (overlay omits the field)     |
+
+Both differences are dp1-js following the current spec, so they should close when dp1-go syncs. Until then, do not assume a document accepted here is accepted by the Go reference. `src/schema/core/playlist-group.json` is the exception to the provenance rule above: the spec removed the Playlist-Group object ([dp1#41](https://github.com/display-protocol/dp1/pull/41)), so that file has no upstream counterpart and is retained from dp1-go for backward compatibility.
+
+Thumbnail dimensions are the one place the schema has since been _loosened_ ([display-protocol/dp1#44](https://github.com/display-protocol/dp1/pull/44)): `w` and `h` are optional on a `Thumbnail` (only `uri` is required), so a producer holding a bare thumbnail URL omits them rather than guessing. When present they are still validated as integers ≥ 1. Every document that validated before still validates, but consumers must treat `w` / `h` as possibly absent.
 
 The item-level `displayAt` field follows the Playlist Extension v0.2.0 overlay (display-protocol/dp1 PR [#37](https://github.com/display-protocol/dp1/pull/37)); it is optional and ignored by older runtimes. `playlist.schedule` is not part of this extension.
+
+Item-level `inlineManifest` follows the same overlay (display-protocol/dp1 PR [#38](https://github.com/display-protocol/dp1/pull/38)): a complete Ref Manifest carried on the item instead of behind a `ref` URL, for playlists with nowhere to host a manifest document. Same schema and validation as a ref-fetched manifest, and integrity comes from the playlist signature, so no `refHash` is needed. When an item has both, a consumer resolves `ref` first; this library stores what you give it and does not drop either.
+
+Both validation paths enforce it: the per-item overlay lives in a single `$defs/PlaylistItemExtension` shared by `playlist_with_extension.json` and `playlist_item_with_extension.json`, so `ValidatePlaylistItemWithPlaylistsExtension` checks a nested manifest exactly as whole-playlist validation does. (The single-item schema used to omit `inlineManifest`; fixed upstream in [display-protocol/dp1#46](https://github.com/display-protocol/dp1/pull/46), reported from this SDK as [dp1#45](https://github.com/display-protocol/dp1/issues/45).)
 
 See [CHANGELOG.md](./CHANGELOG.md) for breaking validation changes.
 

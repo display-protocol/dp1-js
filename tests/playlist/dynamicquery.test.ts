@@ -561,3 +561,79 @@ test('dynamic query keeps valid displayAt and rejects invalid displayAt', async 
     await new Promise(resolve => srv.close(resolve));
   }
 });
+
+// The single-item composed schema is what guards items arriving from an indexer, and it
+// omitted inlineManifest until display-protocol/dp1#46. Pin the end-to-end path, not just
+// the validator: an indexer that returns a malformed inline manifest must be rejected
+// before its item enters the playlist.
+test('dynamic query rejects an item whose inlineManifest is malformed', async () => {
+  const manifest = {
+    refVersion: '0.1.0',
+    id: 'r',
+    created: '2025-01-01T00:00:00Z',
+    locale: 'en',
+  };
+  const cases = [
+    { name: 'missing locale', manifest: { ...manifest, locale: undefined } },
+    { name: 'non-semver refVersion', manifest: { ...manifest, refVersion: 'nope' } },
+    {
+      name: 'thumbnail dimension below 1',
+      manifest: {
+        ...manifest,
+        metadata: { thumbnails: { default: { uri: 'https://example.com/t.jpg', w: 0 } } },
+      },
+    },
+  ];
+
+  for (const tc of cases) {
+    const srv = await startServer((_req, res) => {
+      res.setHeader('content-type', 'application/json');
+      res.end(
+        JSON.stringify({
+          items: [{ source: 'https://example.com/a.html', inlineManifest: tc.manifest }],
+        })
+      );
+    });
+    await assert.rejects(
+      () =>
+        PlaylistItemsFromDynamicQuery(
+          undefined,
+          {
+            profile: ProfileHTTPSJSONV1,
+            endpoint: `http://127.0.0.1:${serverPort(srv)}/json`,
+            responseMapping: { itemsPath: 'items' },
+          },
+          {},
+          undefined,
+          { AllowInsecureHTTP: true }
+        ),
+      err => err instanceof Error && err.message.startsWith(ErrDynamicQueryItemInvalid.message),
+      `expected ErrDynamicQueryItemInvalid for ${tc.name}`
+    );
+    await new Promise(resolve => srv.close(resolve));
+  }
+
+  // A well-formed inline manifest is accepted and preserved on the item.
+  const okSrv = await startServer((_req, res) => {
+    res.setHeader('content-type', 'application/json');
+    res.end(
+      JSON.stringify({
+        items: [{ source: 'https://example.com/a.html', inlineManifest: manifest }],
+      })
+    );
+  });
+  const items = await PlaylistItemsFromDynamicQuery(
+    undefined,
+    {
+      profile: ProfileHTTPSJSONV1,
+      endpoint: `http://127.0.0.1:${serverPort(okSrv)}/json`,
+      responseMapping: { itemsPath: 'items' },
+    },
+    {},
+    undefined,
+    { AllowInsecureHTTP: true }
+  );
+  assert.equal(items.length, 1);
+  assert.equal((items[0] as { inlineManifest?: { locale?: string } }).inlineManifest?.locale, 'en');
+  await new Promise(resolve => okSrv.close(resolve));
+});

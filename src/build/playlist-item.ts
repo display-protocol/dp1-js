@@ -5,11 +5,13 @@ import type {
   Note,
   PlaylistItem,
   ProvenanceBlock,
+  RefManifest,
   ReproBlock,
 } from './types.js';
 import type { DisplayPrefsBuilder } from './display.js';
 import type { NoteBuilder } from './note.js';
 import type { ProvenanceBuilder } from './provenance.js';
+import type { RefManifestBuilder } from './ref-manifest.js';
 import type { ReproBuilder } from './repro.js';
 import {
   PlaylistItem as ValidatePlaylistItem,
@@ -84,6 +86,15 @@ export class PlaylistItemBuilder {
     return this;
   }
 
+  /**
+   * Carry a full Ref Manifest on the item instead of behind `ref` (playlists extension §3.6).
+   * When both are set, a consumer resolves `ref` first — this library keeps both as given.
+   */
+  inlineManifest(value: RefManifest | RefManifestBuilder) {
+    this.item.inlineManifest = resolve(value);
+    return this;
+  }
+
   build(): PlaylistItem {
     const out: PlaylistItem = {
       source: String(this.item.source ?? ''),
@@ -99,9 +110,12 @@ export class PlaylistItemBuilder {
       ...(this.item.provenance === undefined ? {} : { provenance: this.item.provenance }),
       ...(this.item.note === undefined ? {} : { note: this.item.note }),
       ...(this.item.displayAt === undefined ? {} : { displayAt: this.item.displayAt }),
+      ...(this.item.inlineManifest === undefined
+        ? {}
+        : { inlineManifest: this.item.inlineManifest }),
     };
 
-    if (out.note !== undefined || out.displayAt !== undefined) {
+    if (out.note !== undefined || out.displayAt !== undefined || out.inlineManifest !== undefined) {
       ValidatePlaylistItemWithExt(out);
     } else {
       ValidatePlaylistItem(out);
