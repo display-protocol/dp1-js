@@ -30,6 +30,7 @@
     "build": "tsup src/index.ts src/schema.ts src/types.ts src/crypto.ts --dts --format esm,cjs --clean",
     "pretest": "npm run generate:validators",
     "test": "vitest run --passWithNoTests",
+    "pretest:watch": "npm run generate:validators",
     "test:watch": "vitest --passWithNoTests",
     "pretest:coverage": "npm run generate:validators",
     "test:coverage": "vitest run --coverage --passWithNoTests",

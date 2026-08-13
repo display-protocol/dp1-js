@@ -195,13 +195,14 @@ Timezone rules (Playlist Extension §3.5.2):
 
 Validation never compiles a schema at runtime. AJV normally builds each validator with `new Function(...)` on first use, which throws `Code generation from strings disallowed for this context` on workerd and other runtimes that disable dynamic codegen — and only there, so a green Node test run says nothing about it ([#24](https://github.com/display-protocol/dp1-js/issues/24)). The schemas are instead compiled to plain JavaScript ([AJV standalone](https://ajv.js.org/standalone.html)) when the package is built, so validation, every builder's `build()`, and every `ParseAndValidate*` work unchanged on Workers.
 
-The Worker still needs Node compatibility, as it always has: the package root reaches `node:crypto`, `node:net`, and `node:dns` through the signing and playlist modules, and `Buffer` is used throughout. Enable it in `wrangler.toml`:
+The Worker still needs Node compatibility, as it always has: the package root reaches `crypto`, `net`, and `dns` through the signing and playlist modules, and `Buffer` is used throughout. Both keys are required in `wrangler.toml` — the flag alone is not enough:
 
 ```toml
+compatibility_date = "2024-09-23" # or later
 compatibility_flags = ["nodejs_compat"]
 ```
 
-That is the configuration the smoke test runs, and the only one this package is verified on — the library stays Node-targeted, so a plain browser (no Node globals, no `node:` specifiers) is still out of reach regardless of how validation is compiled.
+`nodejs_compat` only provides the Node built-ins and globals this package needs (including `Buffer`) from compatibility date 2024-09-23 onward. With an earlier date, the Worker fails to bundle with `Could not resolve "crypto"` and friends. That configuration — with a current date — is what the smoke test runs and the only one this package is verified on: the library stays Node-targeted, so a plain browser is still out of reach regardless of how validation is compiled.
 
 AJV is a build-time dependency only; installing `dp1-js` pulls in `@noble/curves` and `@noble/hashes` and nothing else. `npm run smoke:workerd` runs the package inside `wrangler dev --local` and asserts both an accepted and a rejected document; it also runs in CI.
 

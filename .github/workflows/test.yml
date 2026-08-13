@@ -38,6 +38,8 @@ jobs:
   workerd_smoke:
     runs-on: ubuntu-latest
     name: Cloudflare Workers (workerd) Smoke Test
+    # `wrangler dev` is a long-running process; cap it rather than lean on the 6h default.
+    timeout-minutes: 15
 
     # Node cannot catch a regression here: `new Function` is legal in Node, so validation only
     # breaks on runtimes that forbid dynamic codegen (display-protocol/dp1-js#24).
