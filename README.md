@@ -9,7 +9,7 @@ Node.js SDK for the [DP-1 protocol](https://github.com/display-protocol/dp1), ke
 
 `dp1-js` provides parsing, validation, canonicalization, hashing, and signing helpers for DP-1 playlists, playlist groups, ref manifests, and Feral File channel documents.
 
-It is designed for Node.js 22+ and ships dual ESM/CJS entrypoints through the package root. Schema validation is precompiled at package build time, so it also runs on runtimes that forbid dynamic code generation — Cloudflare Workers, Deno Deploy, CSP-restricted browsers (see [Edge runtimes](#edge-runtimes-cloudflare-workers)).
+It is designed for Node.js 22+ and ships dual ESM/CJS entrypoints through the package root. Schema validation is precompiled at package build time, so it also runs on Node-compatible runtimes that forbid dynamic code generation — Cloudflare Workers being the tested one (see [Edge runtimes](#edge-runtimes-cloudflare-workers)).
 
 ## Features
 
@@ -194,6 +194,14 @@ Timezone rules (Playlist Extension §3.5.2):
 ## Edge runtimes (Cloudflare Workers)
 
 Validation never compiles a schema at runtime. AJV normally builds each validator with `new Function(...)` on first use, which throws `Code generation from strings disallowed for this context` on workerd and other runtimes that disable dynamic codegen — and only there, so a green Node test run says nothing about it ([#24](https://github.com/display-protocol/dp1-js/issues/24)). The schemas are instead compiled to plain JavaScript ([AJV standalone](https://ajv.js.org/standalone.html)) when the package is built, so validation, every builder's `build()`, and every `ParseAndValidate*` work unchanged on Workers.
+
+The Worker still needs Node compatibility, as it always has: the package root reaches `node:crypto`, `node:net`, and `node:dns` through the signing and playlist modules, and `Buffer` is used throughout. Enable it in `wrangler.toml`:
+
+```toml
+compatibility_flags = ["nodejs_compat"]
+```
+
+That is the configuration the smoke test runs, and the only one this package is verified on — the library stays Node-targeted, so a plain browser (no Node globals, no `node:` specifiers) is still out of reach regardless of how validation is compiled.
 
 AJV is a build-time dependency only; installing `dp1-js` pulls in `@noble/curves` and `@noble/hashes` and nothing else. `npm run smoke:workerd` runs the package inside `wrangler dev --local` and asserts both an accepted and a rejected document; it also runs in CI.
 

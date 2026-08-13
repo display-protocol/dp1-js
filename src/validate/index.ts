@@ -3,9 +3,10 @@
  *
  * The validators in `./generated/validators.js` are built from `src/schema/*.json` by
  * `scripts/generate-validators.mjs`. Nothing here compiles a schema at runtime, so
- * validation works on runtimes that forbid dynamic code generation (Cloudflare Workers,
- * Deno Deploy, CSP-restricted browsers). Add a schema or a `$defs` entry point by editing
- * the manifest in that script, never by hand-editing the generated files.
+ * validation works on Cloudflare Workers and other Node-compatible runtimes that forbid
+ * dynamic code generation. (Node compatibility is still required — `parseInput` below uses
+ * `Buffer`, as does the rest of the library.) Add a schema or a `$defs` entry point by
+ * editing the manifest in that script, never by hand-editing the generated files.
  */
 import * as validators from './generated/validators.js';
 import type { StandaloneValidator } from './generated/validators.js';

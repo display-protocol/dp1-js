@@ -3,9 +3,9 @@
  *
  * Ajv normally compiles schemas with `new Function(...)` on first use, which throws
  * `Code generation from strings disallowed for this context` on runtimes that forbid
- * dynamic codegen (Cloudflare Workers / workerd, Deno Deploy, CSP-restricted browsers).
+ * dynamic codegen — Cloudflare Workers / workerd being the one this package is tested on.
  * Compiling ahead of time keeps `src/schema/*.json` the single source of truth while
- * shipping plain functions that run anywhere.
+ * shipping plain functions that need no codegen.
  *
  * Output: `src/validate/generated/validators.js` + `validators.d.ts` (build artifacts).
  */

@@ -85,10 +85,9 @@ test('package root imports from ESM and CommonJS consumers', async () => {
 
 // Regression guard for display-protocol/dp1-js#24. Ajv used to compile every schema with
 // `new Function(...)` on first validation, which throws on runtimes that forbid dynamic
-// codegen (Cloudflare Workers / workerd, Deno Deploy, CSP-restricted browsers) — a failure
-// no ordinary Node run can reproduce. `--disallow-code-generation-from-strings` makes V8
-// enforce the same rule here. The full workerd smoke test lives in
-// `scripts/workerd-smoke.mjs`.
+// codegen (Cloudflare Workers / workerd) — a failure no ordinary Node run can reproduce.
+// `--disallow-code-generation-from-strings` makes V8 enforce the same rule here. The full
+// workerd smoke test lives in `scripts/workerd-smoke.mjs`.
 const NO_CODEGEN_SMOKE = `
 import assert from 'node:assert/strict';
 import {
