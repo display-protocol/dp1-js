@@ -142,6 +142,7 @@ export type {
 export const SchemaHooks = {
   PlaylistCoreSchemaValidate: validate.Playlist,
   PlaylistWithPlaylistsExtensionSchemaValidate: validate.PlaylistWithPlaylistsExtension,
+  /** @deprecated Playlist-Group was removed from the DP-1 spec (display-protocol/dp1#41). */
   PlaylistGroupSchemaValidate: validate.PlaylistGroup,
   RefManifestSchemaValidate: validate.RefManifest,
   ChannelExtensionSchemaValidate: validate.ChannelsExtension,
@@ -239,6 +240,13 @@ export function ParseAndValidatePlaylistWithPlaylistsExtension(data: Buffer | st
   return doc;
 }
 
+/**
+ * @deprecated The DP-1 spec removed the Playlist-Group (Exhibition) object
+ * (display-protocol/dp1#41): channels superseded it before it saw production use, and
+ * zero groups were ever published. Use the channels extension instead
+ * (`ChannelBuilder`, `ValidateChannel`, `VerifyChannelSignatures`). Retained for
+ * backward compatibility and dp1-go parity; scheduled for removal in the next major.
+ */
 export function ParseAndValidatePlaylistGroup(data: Buffer | string) {
   try {
     SchemaHooks.PlaylistGroupSchemaValidate(data);

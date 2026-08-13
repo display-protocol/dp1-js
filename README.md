@@ -13,7 +13,7 @@ It is designed for Node.js 22+ and ships dual ESM/CJS entrypoints through the pa
 
 ## Features
 
-- Parse and validate DP-1 playlist, playlist-group, ref manifest, and channel documents.
+- Parse and validate DP-1 playlist, ref manifest, and channel documents (plus deprecated playlist-group, see below).
 - Schema-validate unsigned drafts via `Validate*` helpers (`requireSignatures: false`).
 - Build DP-1 documents and leaf structures with fluent builders backed by AJV schemas.
 - Canonicalize signing payloads using RFC 8785-style JSON canonicalization.
@@ -175,11 +175,11 @@ Timezone rules (Playlist Extension §3.5.2):
 
 - `parseDP1Playlist(json)` returns a `{ playlist, error }` result for already-parsed JSON input (shape-only; not full schema).
 - `ValidatePlaylist(data, options?)` runs AJV against the core playlist schema. `requireSignatures` defaults to `true`; set `false` for unsigned drafts. Accepts `Buffer`, JSON string, or a parsed object.
-- `ValidatePlaylistGroup`, `ValidateChannel`, and `ValidatePlaylistWithPlaylistsExtension` use the same `requireSignatures` option.
+- `ValidateChannel` and `ValidatePlaylistWithPlaylistsExtension` use the same `requireSignatures` option, as does the deprecated `ValidatePlaylistGroup`.
 - Leaf helpers such as `ValidateNote`, `ValidateEntity`, `ValidateDisplayPrefs`, `ValidateProvenanceBlock`, `ValidateLocalizedMetadata`, and `ValidateRefManifest` run AJV against the matching schema / `$defs` (builders use these on `build()`).
 - `PlaylistItemBuilder` carries the playlists-extension item fields: `.note()`, `.displayAt()`, and `.inlineManifest(manifest | RefManifestBuilder)`. Setting any of them validates the item against the composed core + extension schema instead of core alone, so a malformed inline manifest fails at `build()`.
 - `RefManifestBuilder` covers the whole manifest: `.metadata(MetadataBuilder)`, `.controls(ControlsBuilder)`, and `.i18n({ locale: LocalizedMetadataBuilder })` / `.addLocalized(locale, …)`. The `i18n` write sites take `LocalizedMetadataOverride` — `LocalizedMetadata` with `artists` / `tags` / `thumbnails` closed off — so a full `Metadata` value cannot stand in for a locale override; reading back gives you a plain `LocalizedMetadata`. `MetadataBuilder` has `.artists()` / `.addArtist()` and `.thumbnails()` / `.addThumbnail(key, …)`; `LocalizedMetadataBuilder` covers the three localizable fields (`title`, `description`, `creditLine`).
-- Leaf builders (`NoteBuilder`, `DisplayPrefsBuilder`, …) and document builders (`PlaylistBuilder`, `PlaylistGroupBuilder`, `ChannelBuilder`, `RefManifestBuilder`, `PlaylistItemBuilder`) are exported from the package root. Builder `Playlist`/`PlaylistItem` draft shapes stay internal to avoid colliding with the looser parse types exported as `Playlist` / `PlaylistItem`.
+- Leaf builders (`NoteBuilder`, `DisplayPrefsBuilder`, …) and document builders (`PlaylistBuilder`, `ChannelBuilder`, `RefManifestBuilder`, `PlaylistItemBuilder`, and the deprecated `PlaylistGroupBuilder`) are exported from the package root. Builder `Playlist`/`PlaylistItem` draft shapes stay internal to avoid colliding with the looser parse types exported as `Playlist` / `PlaylistItem`.
 - `ParseAndValidatePlaylist(data)` and `ParseAndValidateChannel(data)` accept raw JSON as `Buffer` or string and require signatures (multi-sig or legacy).
 - `signDP1Playlist(raw, privateKey)` returns a legacy `ed25519:<hex>` signature string for v1.0.x playlists.
 - `verifyPlaylistSignature(raw, signature, publicKey)` throws if verification fails.
@@ -203,6 +203,12 @@ Embedded JSON Schema files under `src/schema/` track the specification repositor
 | Single item with a malformed `inlineManifest` | rejected | accepted (overlay omits the field)     |
 
 Both differences are dp1-js following the current spec, so they should close when dp1-go syncs. Until then, do not assume a document accepted here is accepted by the Go reference. `src/schema/core/playlist-group.json` is the exception to the provenance rule above: the spec removed the Playlist-Group object ([dp1#41](https://github.com/display-protocol/dp1/pull/41)), so that file has no upstream counterpart and is retained from dp1-go for backward compatibility.
+
+### Playlist-Group is deprecated
+
+The DP-1 spec removed the Playlist-Group (Exhibition) object in [dp1#41](https://github.com/display-protocol/dp1/pull/41) — channels superseded it before it saw production use, and per the spec, zero groups were ever published. Every Playlist-Group export here is now marked `@deprecated`: `parsePlaylistGroup`, `PlaylistGroupDocument`, `PlaylistGroupBuilder`, `ValidatePlaylistGroup`, `ParseAndValidatePlaylistGroup`, `VerifyPlaylistGroupSignatures`, `SchemaHooks.PlaylistGroupSchemaValidate`, `ErrorCode.PlaylistGroupInvalid`, and the `PlaylistGroup` type.
+
+Nothing has changed at runtime — existing documents still parse, validate, and verify exactly as before. Use the channels extension (`ChannelBuilder`, `ValidateChannel`, `VerifyChannelSignatures`) for new work. Removal is deferred to a major release, ideally coordinated with `dp1-go`, which still ships the object; dropping it here alone would open a fresh parity gap.
 
 Thumbnail dimensions are the one place the schema has since been _loosened_ ([display-protocol/dp1#44](https://github.com/display-protocol/dp1/pull/44)): `w` and `h` are optional on a `Thumbnail` (only `uri` is required), so a producer holding a bare thumbnail URL omits them rather than guessing. When present they are still validated as integers ≥ 1. Every document that validated before still validates, but consumers must treat `w` / `h` as possibly absent.
 

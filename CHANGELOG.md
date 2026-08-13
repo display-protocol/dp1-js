@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+### Deprecated (Playlist-Group)
+
+- Every Playlist-Group export is now marked `@deprecated`: `parsePlaylistGroup`, `PlaylistGroupDocument`, `PlaylistGroupBuilder`, `ValidatePlaylistGroup`, `ParseAndValidatePlaylistGroup`, `VerifyPlaylistGroupSignatures`, `SchemaHooks.PlaylistGroupSchemaValidate`, `ErrorCode.PlaylistGroupInvalid`, and the `PlaylistGroup` type. The DP-1 spec removed the Playlist-Group (Exhibition) object in [display-protocol/dp1#41](https://github.com/display-protocol/dp1/pull/41): channels superseded it before it saw production use and, per the spec, zero groups were ever published. dp1-js was still offering tooling to build, validate, and sign a document type the protocol no longer defines, with nothing in the API saying so.
+- Nothing changed at runtime. Existing documents parse, validate, and verify exactly as before, the schema stays registered, and `tests/playlistgroup/group.test.ts` pins the whole surface so the deprecation cannot drift into a silent removal. The annotations resolve through the published type declarations, so `tsc` and editors report the deprecation at the call site.
+- Removal is deferred to a major release rather than done now, and ideally coordinated with `dp1-go`, which still ships the object (`internal/schema/core/v1.1.0/playlist-group.json`). Dropping it here alone would open a third dp1-go parity gap on top of the two already documented in the README.
+
 ## 2.3.0 — 2026-08-13
 
 ### Changed (loosening: `Thumbnail.w` / `Thumbnail.h` optional)

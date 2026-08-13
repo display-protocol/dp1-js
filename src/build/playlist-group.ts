@@ -2,6 +2,13 @@ import { generateId, nowIso } from './helpers.js';
 import type { PlaylistGroup } from './types.js';
 import { PlaylistGroup as ValidatePlaylistGroup } from '../validate/index.js';
 
+/**
+ * @deprecated The DP-1 spec removed the Playlist-Group (Exhibition) object
+ * (display-protocol/dp1#41): channels superseded it before it saw production use, and
+ * zero groups were ever published. Use the channels extension instead
+ * (`ChannelBuilder`, `ValidateChannel`, `VerifyChannelSignatures`). Retained for
+ * backward compatibility and dp1-go parity; scheduled for removal in the next major.
+ */
 export class PlaylistGroupBuilder {
   private doc: Partial<PlaylistGroup> = { playlists: [] };
 

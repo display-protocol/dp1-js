@@ -12,6 +12,7 @@ export class CodedError extends Error {
 
 export const ErrorCode = Object.freeze({
   PlaylistInvalid: 'playlistInvalid',
+  /** @deprecated Playlist-Group was removed from the DP-1 spec (display-protocol/dp1#41). */
   PlaylistGroupInvalid: 'playlistGroupInvalid',
   RefManifestInvalid: 'refManifestInvalid',
   ChannelInvalid: 'channelInvalid',
