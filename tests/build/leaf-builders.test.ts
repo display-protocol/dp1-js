@@ -112,6 +112,18 @@ test('ThumbnailBuilder omits unset dimensions rather than guessing', () => {
   // One dimension alone is still valid: w and h are independently optional.
   const widthOnly = new ThumbnailBuilder().uri('https://example.com/x.png').widthPx(320).build();
   assert.deepEqual(Object.keys(widthOnly), ['uri', 'w']);
+  const heightOnly = new ThumbnailBuilder().uri('https://example.com/x.png').heightPx(180).build();
+  assert.deepEqual(Object.keys(heightOnly), ['uri', 'h']);
+
+  // Key order is normalized by build(), not inherited from setter order — the output
+  // feeds JCS canonicalization, so this must not depend on how the caller chained.
+  const reversed = new ThumbnailBuilder()
+    .heightPx(180)
+    .sha256Hex('a'.repeat(64))
+    .widthPx(320)
+    .uri('https://example.com/x.png')
+    .build();
+  assert.deepEqual(Object.keys(reversed), ['uri', 'w', 'h', 'sha256']);
 });
 
 test('ReproBuilder rejects uppercase hex and validates plain frameHash', () => {

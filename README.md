@@ -185,15 +185,24 @@ Timezone rules (Playlist Extension §3.5.2):
 - `verifyPlaylistSignature(raw, signature, publicKey)` throws if verification fails.
 - `SignMultiEIP191(raw, privateKey, chainID, role, ts)` signs with `personal_sign` semantics and emits the Ethereum-standard 65-byte `r || s || v` signature (`v` = 27/28), base64url-encoded, with a `did:pkh:eip155:<chainID>:<address>` `kid`. Verification accepts `v` of either 27/28 (wallets) or 0/1 (`dp1-go`), so signatures interoperate with wallets and the Go reference in both directions.
 - `ParseDPVersion(version)` is available for version parsing and major-version checks.
-- `DisplayForItem(def, ref, item)` merges display preferences using the same field-level overlay order as `dp1-go`.
+- `DisplayForItem(def, ref, item)` merges display preferences using the same field-level overlay order as `dp1-go`. It takes a single manifest slot, so with both `ref` and `inlineManifest` present the caller chooses which to pass; the spec's order is `defaults → inlineManifest → ref → item.local`, so to honour it fully, call once with the inline manifest and again with the fetched one, feeding the first result forward as `def`.
 - `parseDisplayAt(displayAt, localTimezone?)` parses item release times with the timezone rules above; throws on malformed input.
 - `parseDisplayAtNanoseconds(displayAt, localTimezone?)` returns the exact epoch nanoseconds used by the scheduler; use it when sub-millisecond release times matter.
 - `computeActiveSet(playlist, now, localTimezone?)` activates `displayAt` scheduling whenever at least one item has that field; otherwise it returns all items. `now` accepts a `Date` (millisecond precision) or epoch-nanoseconds `bigint` for exact sub-millisecond scheduling. Unresolvable `displayAt` values are skipped.
 - `nextDisplayAt(playlist, now, localTimezone?)` returns the soonest future resolvable `displayAt`. With `bigint` `now`, it returns epoch nanoseconds; with `Date` `now`, it returns a `Date` rounded up to avoid early timers.
 
-## Validation parity with dp1-go
+## Schema provenance and parity
 
-Embedded JSON Schema files under `src/schema/` are kept in sync with [`display-protocol/dp1-go`](https://github.com/display-protocol/dp1-go) (`internal/schema/`). Payloads that passed validation under older, looser schemas may now fail — for example invalid `license` values or provenance blocks without `type`.
+Embedded JSON Schema files under `src/schema/` track the specification repository, [`display-protocol/dp1`](https://github.com/display-protocol/dp1) — `core/v1.1.0/schemas/` and `extensions/` — and are kept byte-identical to it. Payloads that passed validation under older, looser schemas may fail — for example invalid `license` values or provenance blocks without `type`.
+
+**Parity with dp1-go is currently partial.** The Go SDK's `internal/schema/` has not yet picked up two spec changes that this SDK has, so the two implementations disagree on these cases:
+
+| Case                                          | dp1-js   | dp1-go                                 |
+| :-------------------------------------------- | :------- | :------------------------------------- |
+| `Thumbnail` with `uri` only, no `w` / `h`     | accepted | rejected (`required: ["uri","w","h"]`) |
+| Single item with a malformed `inlineManifest` | rejected | accepted (overlay omits the field)     |
+
+Both differences are dp1-js following the current spec, so they should close when dp1-go syncs. Until then, do not assume a document accepted here is accepted by the Go reference. `src/schema/core/playlist-group.json` is the exception to the provenance rule above: the spec removed the Playlist-Group object ([dp1#41](https://github.com/display-protocol/dp1/pull/41)), so that file has no upstream counterpart and is retained from dp1-go for backward compatibility.
 
 Thumbnail dimensions are the one place the schema has since been _loosened_ ([display-protocol/dp1#44](https://github.com/display-protocol/dp1/pull/44)): `w` and `h` are optional on a `Thumbnail` (only `uri` is required), so a producer holding a bare thumbnail URL omits them rather than guessing. When present they are still validated as integers ≥ 1. Every document that validated before still validates, but consumers must treat `w` / `h` as possibly absent.
 

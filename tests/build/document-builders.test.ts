@@ -63,6 +63,18 @@ test('PlaylistItemBuilder carries an inline ref manifest', () => {
   assert.match(item.inlineManifest?.id ?? '', /^[0-9a-f-]{36}$/i);
 });
 
+test('PlaylistItemBuilder keeps both ref and inlineManifest', () => {
+  // Precedence (ref wins) is the consumer's job at resolve time; the builder must not
+  // drop either carriage option. README and the builder doc-comment both promise this.
+  const item = new PlaylistItemBuilder()
+    .source('https://example.com/a.html')
+    .ref('https://example.com/manifest.json')
+    .inlineManifest(new RefManifestBuilder().locale('en'))
+    .build();
+  assert.equal(item.ref, 'https://example.com/manifest.json');
+  assert.equal(item.inlineManifest?.locale, 'en');
+});
+
 test('PlaylistItemBuilder rejects a malformed raw inline manifest', () => {
   for (const manifest of [
     // `locale` is required by the ref-manifest schema.
