@@ -34,3 +34,28 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: display-protocol/dp1-js
           flags: unittests
+
+  workerd_smoke:
+    runs-on: ubuntu-latest
+    name: Cloudflare Workers (workerd) Smoke Test
+    # `wrangler dev` is a long-running process; cap it rather than lean on the 6h default.
+    timeout-minutes: 15
+
+    # Node cannot catch a regression here: `new Function` is legal in Node, so validation only
+    # breaks on runtimes that forbid dynamic codegen (display-protocol/dp1-js#24).
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and validate inside workerd
+        run: npm run smoke:workerd

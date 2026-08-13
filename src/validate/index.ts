@@ -1,28 +1,16 @@
-import Ajv2020 from 'ajv/dist/2020.js';
-import addFormats from 'ajv-formats';
-import playlist from '../schema/core/playlist.json' with { type: 'json' };
-import playlistGroup from '../schema/core/playlist-group.json' with { type: 'json' };
-import refManifest from '../schema/core/ref-manifest.json' with { type: 'json' };
-import channel from '../schema/extensions/channels/schema.json' with { type: 'json' };
-import playlistsExt from '../schema/extensions/playlists/schema.json' with { type: 'json' };
-import playlistBundle from '../schema/extensions/playlists/bundles/playlist-core-v1.1.0.json' with { type: 'json' };
-import playlistWithExt from '../schema/extensions/playlists/playlist_with_extension.json' with { type: 'json' };
-import playlistItemWithExt from '../schema/extensions/playlists/playlist_item_with_extension.json' with { type: 'json' };
+/**
+ * Schema validation against precompiled (Ajv standalone) validators.
+ *
+ * The validators in `./generated/validators.js` are built from `src/schema/*.json` by
+ * `scripts/generate-validators.mjs`. Nothing here compiles a schema at runtime, so
+ * validation works on Cloudflare Workers and other Node-compatible runtimes that forbid
+ * dynamic code generation. (Node compatibility is still required — `parseInput` below uses
+ * `Buffer`, as does the rest of the library.) Add a schema or a `$defs` entry point by
+ * editing the manifest in that script, never by hand-editing the generated files.
+ */
+import * as validators from './generated/validators.js';
+import type { StandaloneValidator } from './generated/validators.js';
 import { ErrValidation } from '../errors.js';
-
-const ajv = addFormats(new Ajv2020({ strict: false, allErrors: true, allowUnionTypes: true }));
-for (const schema of [
-  playlist,
-  playlistGroup,
-  refManifest,
-  channel,
-  playlistsExt,
-  playlistBundle,
-  playlistWithExt,
-  playlistItemWithExt,
-]) {
-  ajv.addSchema(schema);
-}
 
 export type RequireSignaturesOptions = {
   /**
@@ -35,54 +23,6 @@ export type RequireSignaturesOptions = {
 /** @deprecated Prefer `RequireSignaturesOptions`. */
 export type ValidatePlaylistOptions = RequireSignaturesOptions;
 
-function unsignedSchemaId(baseId: string): string {
-  return `${baseId}-unsigned`;
-}
-
-/**
- * Register a clone of a signed-document schema with the signature anyOf removed.
- * Uses a distinct `$id` so it does not collide with the canonical schema.
- *
- * Invariant: today these schemas use top-level `anyOf` only for
- * `signatures` / legacy `signature`. Do not reuse this helper if `anyOf` gains
- * unrelated branches.
- */
-function ensureUnsignedSchema(base: { readonly $id: string }): string {
-  const id = unsignedSchemaId(base.$id);
-  if (ajv.getSchema(id)) return id;
-  const unsigned = structuredClone(base) as Record<string, unknown>;
-  delete unsigned.anyOf;
-  unsigned.$id = id;
-  ajv.addSchema(unsigned);
-  return id;
-}
-
-/**
- * Composed playlist+extension schema requires signatures via the bundle $ref.
- * Clone the bundle without signature anyOf, then point a composed schema at it.
- */
-function ensureUnsignedPlaylistWithExtensionSchema(): string {
-  const composedId = unsignedSchemaId(playlistWithExt.$id);
-  if (ajv.getSchema(composedId)) return composedId;
-
-  const bundleId = unsignedSchemaId(playlistBundle.$id);
-  if (!ajv.getSchema(bundleId)) {
-    const unsignedBundle = structuredClone(playlistBundle) as Record<string, unknown>;
-    delete unsignedBundle.anyOf;
-    unsignedBundle.$id = bundleId;
-    ajv.addSchema(unsignedBundle);
-  }
-
-  const unsignedComposed = structuredClone(playlistWithExt) as {
-    $id: string;
-    allOf: Array<{ $ref: string }>;
-  };
-  unsignedComposed.$id = composedId;
-  unsignedComposed.allOf = [{ $ref: bundleId }, { $ref: playlistsExt.$id }];
-  ajv.addSchema(unsignedComposed);
-  return composedId;
-}
-
 function validationError(
   message: string,
   details: Array<{ path: string; message: string }>,
@@ -94,8 +34,8 @@ function validationError(
   });
 }
 
-function formatAjvErrors() {
-  return (ajv.errors ?? []).map(err => {
+function formatAjvErrors(validator: StandaloneValidator) {
+  return (validator.errors ?? []).map(err => {
     const path = err.instancePath || '/';
     const message = err.message ?? 'validation failed';
     return { path, message };
@@ -114,23 +54,23 @@ function parseInput(data: Buffer | string | unknown): unknown {
   return data;
 }
 
-function validate(schemaId: string, data: Buffer | string | unknown) {
+function validate(validator: StandaloneValidator, data: Buffer | string | unknown) {
   const doc = parseInput(data);
-  const ok = ajv.validate(schemaId, doc);
-  if (!ok) throw validationError(ErrValidation.message, formatAjvErrors());
+  if (!validator(doc)) throw validationError(ErrValidation.message, formatAjvErrors(validator));
 }
 
+/**
+ * Pick the signed or unsigned variant of a document schema. The `-unsigned` variants are
+ * precompiled clones with the top-level signature `anyOf` removed; see the generator.
+ */
 function validateSignedDocument(
-  base: { readonly $id: string },
+  signed: StandaloneValidator,
+  unsigned: StandaloneValidator,
   data: Buffer | string | unknown,
   options?: RequireSignaturesOptions
 ): void {
   const requireSignatures = options?.requireSignatures !== false;
-  if (requireSignatures) {
-    validate(base.$id, data);
-    return;
-  }
-  validate(ensureUnsignedSchema(base), data);
+  validate(requireSignatures ? signed : unsigned, data);
 }
 
 /**
@@ -141,7 +81,7 @@ export function Playlist(
   data: Buffer | string | unknown,
   options?: RequireSignaturesOptions
 ): void {
-  validateSignedDocument(playlist, data, options);
+  validateSignedDocument(validators.playlist, validators.playlistUnsigned, data, options);
 }
 
 /**
@@ -158,7 +98,7 @@ export function PlaylistGroup(
   data: Buffer | string | unknown,
   options?: RequireSignaturesOptions
 ): void {
-  validateSignedDocument(playlistGroup, data, options);
+  validateSignedDocument(validators.playlistGroup, validators.playlistGroupUnsigned, data, options);
 }
 
 /**
@@ -169,25 +109,26 @@ export function ChannelsExtension(
   data: Buffer | string | unknown,
   options?: RequireSignaturesOptions
 ): void {
-  validateSignedDocument(channel, data, options);
+  validateSignedDocument(validators.channel, validators.channelUnsigned, data, options);
 }
 
 export function PlaylistWithPlaylistsExtension(
   data: Buffer | string | unknown,
   options?: RequireSignaturesOptions
 ): void {
-  const requireSignatures = options?.requireSignatures !== false;
-  if (requireSignatures) {
-    validate(playlistWithExt.$id, data);
-    return;
-  }
-  validate(ensureUnsignedPlaylistWithExtensionSchema(), data);
+  validateSignedDocument(
+    validators.playlistWithExt,
+    validators.playlistWithExtUnsigned,
+    data,
+    options
+  );
 }
-export const RefManifest = (data: Buffer | string | unknown) => validate(refManifest.$id, data);
+export const RefManifest = (data: Buffer | string | unknown) =>
+  validate(validators.refManifest, data);
 export const PlaylistsExtensionFragment = (data: Buffer | string | unknown) =>
-  validate(playlistsExt.$id, data);
+  validate(validators.playlistsExt, data);
 export const PlaylistItem = (data: Buffer | string | unknown) =>
-  validate(`${playlist.$id}#/$defs/PlaylistItem`, data);
+  validate(validators.playlistItem, data);
 export const parsePlaylistItem = PlaylistItem;
 /**
  * Core PlaylistItem + the playlists-extension overlay (note / displayAt / inlineManifest).
@@ -197,48 +138,41 @@ export const parsePlaylistItem = PlaylistItem;
  * composed schema, so both validation paths enforce the same per-item fields.
  */
 export const PlaylistItemWithPlaylistsExtension = (data: Buffer | string | unknown) =>
-  validate(playlistItemWithExt.$id, data);
+  validate(validators.playlistItemWithExt, data);
 
 // --- Leaf / $defs validators (schema-only; used by builders) ---
 
-export const Note = (data: Buffer | string | unknown) =>
-  validate(`${playlistsExt.$id}#/$defs/Note`, data);
-export const Entity = (data: Buffer | string | unknown) =>
-  validate(`${playlistsExt.$id}#/$defs/Entity`, data);
+export const Note = (data: Buffer | string | unknown) => validate(validators.note, data);
+export const Entity = (data: Buffer | string | unknown) => validate(validators.entity, data);
 export const DynamicQuery = (data: Buffer | string | unknown) =>
-  validate(`${playlistsExt.$id}#/$defs/DynamicQuery`, data);
+  validate(validators.dynamicQuery, data);
 export const ResponseMapping = (data: Buffer | string | unknown) =>
-  validate(`${playlistsExt.$id}#/$defs/ResponseMapping`, data);
+  validate(validators.responseMapping, data);
 
 export const DisplayPrefs = (data: Buffer | string | unknown) =>
-  validate(`${playlist.$id}#/$defs/DisplayPrefs`, data);
+  validate(validators.displayPrefs, data);
 export const ReproBlock = (data: Buffer | string | unknown) =>
-  validate(`${playlist.$id}#/$defs/ReproBlock`, data);
+  validate(validators.reproBlock, data);
 export const ProvenanceBlock = (data: Buffer | string | unknown) =>
-  validate(`${playlist.$id}#/$defs/ProvenanceBlock`, data);
+  validate(validators.provenanceBlock, data);
 /** Nested contract object under ProvenanceBlock (not a top-level $def). */
-export const Contract = (data: Buffer | string | unknown) =>
-  validate(`${playlist.$id}#/$defs/ProvenanceBlock/properties/contract`, data);
+export const Contract = (data: Buffer | string | unknown) => validate(validators.contract, data);
 /** Nested dependency item under ProvenanceBlock.dependencies. */
 export const Dependency = (data: Buffer | string | unknown) =>
-  validate(`${playlist.$id}#/$defs/ProvenanceBlock/properties/dependencies/items`, data);
+  validate(validators.dependency, data);
 export const ReproFrameHash = (data: Buffer | string | unknown) =>
-  validate(`${playlist.$id}#/$defs/ReproBlock/properties/frameHash`, data);
+  validate(validators.reproFrameHash, data);
 export const ReproEngineVersion = (data: Buffer | string | unknown) =>
-  validate(`${playlist.$id}#/$defs/ReproBlock/properties/engineVersion`, data);
+  validate(validators.reproEngineVersion, data);
 
-export const Thumbnail = (data: Buffer | string | unknown) =>
-  validate(`${refManifest.$id}#/$defs/Thumbnail`, data);
-export const Artist = (data: Buffer | string | unknown) =>
-  validate(`${refManifest.$id}#/$defs/Artist`, data);
-export const Metadata = (data: Buffer | string | unknown) =>
-  validate(`${refManifest.$id}#/$defs/Metadata`, data);
+export const Thumbnail = (data: Buffer | string | unknown) => validate(validators.thumbnail, data);
+export const Artist = (data: Buffer | string | unknown) => validate(validators.artist, data);
+export const Metadata = (data: Buffer | string | unknown) => validate(validators.metadata, data);
 /** Localized text overrides under `i18n` (title / description / creditLine only). */
 export const LocalizedMetadata = (data: Buffer | string | unknown) =>
-  validate(`${refManifest.$id}#/$defs/LocalizedMetadata`, data);
-export const Controls = (data: Buffer | string | unknown) =>
-  validate(`${refManifest.$id}#/$defs/Controls`, data);
+  validate(validators.localizedMetadata, data);
+export const Controls = (data: Buffer | string | unknown) => validate(validators.controls, data);
 export const DisplayControls = (data: Buffer | string | unknown) =>
-  validate(`${refManifest.$id}#/$defs/DisplayControls`, data);
+  validate(validators.displayControls, data);
 export const SafetyControls = (data: Buffer | string | unknown) =>
-  validate(`${refManifest.$id}#/$defs/SafetyControls`, data);
+  validate(validators.safetyControls, data);

@@ -9,3 +9,4 @@ globs:
 - Prefer built-in Node APIs for JSON, crypto, and filesystem behavior.
 - Keep documentation, workflows, and tests aligned with any exported API changes.
 - Do not introduce browser-specific assumptions unless the request explicitly broadens the runtime.
+- Validation must not compile schemas at runtime (`new Function` / `eval`): edge runtimes forbid it. `src/schema/*.json` stays the source of truth; `scripts/generate-validators.mjs` precompiles it into `src/validate/generated/` (a build artifact — regenerate, never hand-edit) and owns the derived `-unsigned` variants.

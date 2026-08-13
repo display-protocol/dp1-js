@@ -9,6 +9,7 @@ export default defineConfig({
         'node_modules/**',
         'dist/**',
         'coverage/**',
+        'src/validate/generated/**',
         'tests/**',
         '**/*.d.ts',
         '**/*.config.*',
