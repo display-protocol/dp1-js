@@ -8,5 +8,6 @@ globs:
 - Preserve the dp1-go-aligned module layout under `src/`.
 - Prefer built-in Node APIs for JSON, crypto, and filesystem behavior.
 - Keep documentation, workflows, and tests aligned with any exported API changes.
-- Do not introduce browser-specific assumptions unless the request explicitly broadens the runtime.
+- One build serves Node, browsers, and Cloudflare Workers. Never import a `node:*` module in `src/`, and never touch the `Buffer` or `process` globals — use `src/runtime/bytes.ts`, `src/runtime/ip.ts`, and `src/runtime/dns.ts`. ESLint blocks both; `tests/package.test.ts` checks the built output.
+- Keep the public API synchronous where it is synchronous today. `@noble` is chosen over Web Crypto precisely because `subtle` is promise-based and would force a breaking async API.
 - Validation must not compile schemas at runtime (`new Function` / `eval`): edge runtimes forbid it. `src/schema/*.json` stays the source of truth; `scripts/generate-validators.mjs` precompiles it into `src/validate/generated/` (a build artifact — regenerate, never hand-edit) and owns the derived `-unsigned` variants.

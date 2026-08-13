@@ -4,10 +4,10 @@
  * The validators in `./generated/validators.js` are built from `src/schema/*.json` by
  * `scripts/generate-validators.mjs`. Nothing here compiles a schema at runtime, so
  * validation works on Cloudflare Workers and other Node-compatible runtimes that forbid
- * dynamic code generation. (Node compatibility is still required — `parseInput` below uses
- * `Buffer`, as does the rest of the library.) Add a schema or a `$defs` entry point by
- * editing the manifest in that script, never by hand-editing the generated files.
+ * dynamic code generation. Add a schema or a `$defs` entry point by editing the manifest in
+ * that script, never by hand-editing the generated files.
  */
+import { isBinary, toText, type BinaryLike } from '../runtime/bytes.js';
 import * as validators from './generated/validators.js';
 import type { StandaloneValidator } from './generated/validators.js';
 import { ErrValidation } from '../errors.js';
@@ -42,10 +42,10 @@ function formatAjvErrors(validator: StandaloneValidator) {
   });
 }
 
-function parseInput(data: Buffer | string | unknown): unknown {
-  if (typeof data === 'string' || Buffer.isBuffer(data)) {
+function parseInput(data: BinaryLike | unknown): unknown {
+  if (typeof data === 'string' || isBinary(data)) {
     try {
-      return JSON.parse(Buffer.isBuffer(data) ? data.toString('utf8') : data);
+      return JSON.parse(toText(data));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       throw validationError(`${ErrValidation.message}: json: ${message}`, [{ path: '/', message }]);
@@ -54,7 +54,7 @@ function parseInput(data: Buffer | string | unknown): unknown {
   return data;
 }
 
-function validate(validator: StandaloneValidator, data: Buffer | string | unknown) {
+function validate(validator: StandaloneValidator, data: BinaryLike | unknown) {
   const doc = parseInput(data);
   if (!validator(doc)) throw validationError(ErrValidation.message, formatAjvErrors(validator));
 }
@@ -66,7 +66,7 @@ function validate(validator: StandaloneValidator, data: Buffer | string | unknow
 function validateSignedDocument(
   signed: StandaloneValidator,
   unsigned: StandaloneValidator,
-  data: Buffer | string | unknown,
+  data: BinaryLike | unknown,
   options?: RequireSignaturesOptions
 ): void {
   const requireSignatures = options?.requireSignatures !== false;
@@ -77,10 +77,7 @@ function validateSignedDocument(
  * Validate a playlist JSON document against the core DP-1 playlist schema.
  * Defaults to requiring signatures; pass `{ requireSignatures: false }` for unsigned drafts.
  */
-export function Playlist(
-  data: Buffer | string | unknown,
-  options?: RequireSignaturesOptions
-): void {
+export function Playlist(data: BinaryLike | unknown, options?: RequireSignaturesOptions): void {
   validateSignedDocument(validators.playlist, validators.playlistUnsigned, data, options);
 }
 
@@ -95,7 +92,7 @@ export function Playlist(
  * backward compatibility and dp1-go parity; scheduled for removal in the next major.
  */
 export function PlaylistGroup(
-  data: Buffer | string | unknown,
+  data: BinaryLike | unknown,
   options?: RequireSignaturesOptions
 ): void {
   validateSignedDocument(validators.playlistGroup, validators.playlistGroupUnsigned, data, options);
@@ -106,14 +103,14 @@ export function PlaylistGroup(
  * Defaults to requiring signatures; pass `{ requireSignatures: false }` for unsigned drafts.
  */
 export function ChannelsExtension(
-  data: Buffer | string | unknown,
+  data: BinaryLike | unknown,
   options?: RequireSignaturesOptions
 ): void {
   validateSignedDocument(validators.channel, validators.channelUnsigned, data, options);
 }
 
 export function PlaylistWithPlaylistsExtension(
-  data: Buffer | string | unknown,
+  data: BinaryLike | unknown,
   options?: RequireSignaturesOptions
 ): void {
   validateSignedDocument(
@@ -123,12 +120,10 @@ export function PlaylistWithPlaylistsExtension(
     options
   );
 }
-export const RefManifest = (data: Buffer | string | unknown) =>
-  validate(validators.refManifest, data);
-export const PlaylistsExtensionFragment = (data: Buffer | string | unknown) =>
+export const RefManifest = (data: BinaryLike | unknown) => validate(validators.refManifest, data);
+export const PlaylistsExtensionFragment = (data: BinaryLike | unknown) =>
   validate(validators.playlistsExt, data);
-export const PlaylistItem = (data: Buffer | string | unknown) =>
-  validate(validators.playlistItem, data);
+export const PlaylistItem = (data: BinaryLike | unknown) => validate(validators.playlistItem, data);
 export const parsePlaylistItem = PlaylistItem;
 /**
  * Core PlaylistItem + the playlists-extension overlay (note / displayAt / inlineManifest).
@@ -137,42 +132,38 @@ export const parsePlaylistItem = PlaylistItem;
  * The overlay is a single `$defs/PlaylistItemExtension` shared with the playlist-level
  * composed schema, so both validation paths enforce the same per-item fields.
  */
-export const PlaylistItemWithPlaylistsExtension = (data: Buffer | string | unknown) =>
+export const PlaylistItemWithPlaylistsExtension = (data: BinaryLike | unknown) =>
   validate(validators.playlistItemWithExt, data);
 
 // --- Leaf / $defs validators (schema-only; used by builders) ---
 
-export const Note = (data: Buffer | string | unknown) => validate(validators.note, data);
-export const Entity = (data: Buffer | string | unknown) => validate(validators.entity, data);
-export const DynamicQuery = (data: Buffer | string | unknown) =>
-  validate(validators.dynamicQuery, data);
-export const ResponseMapping = (data: Buffer | string | unknown) =>
+export const Note = (data: BinaryLike | unknown) => validate(validators.note, data);
+export const Entity = (data: BinaryLike | unknown) => validate(validators.entity, data);
+export const DynamicQuery = (data: BinaryLike | unknown) => validate(validators.dynamicQuery, data);
+export const ResponseMapping = (data: BinaryLike | unknown) =>
   validate(validators.responseMapping, data);
 
-export const DisplayPrefs = (data: Buffer | string | unknown) =>
-  validate(validators.displayPrefs, data);
-export const ReproBlock = (data: Buffer | string | unknown) =>
-  validate(validators.reproBlock, data);
-export const ProvenanceBlock = (data: Buffer | string | unknown) =>
+export const DisplayPrefs = (data: BinaryLike | unknown) => validate(validators.displayPrefs, data);
+export const ReproBlock = (data: BinaryLike | unknown) => validate(validators.reproBlock, data);
+export const ProvenanceBlock = (data: BinaryLike | unknown) =>
   validate(validators.provenanceBlock, data);
 /** Nested contract object under ProvenanceBlock (not a top-level $def). */
-export const Contract = (data: Buffer | string | unknown) => validate(validators.contract, data);
+export const Contract = (data: BinaryLike | unknown) => validate(validators.contract, data);
 /** Nested dependency item under ProvenanceBlock.dependencies. */
-export const Dependency = (data: Buffer | string | unknown) =>
-  validate(validators.dependency, data);
-export const ReproFrameHash = (data: Buffer | string | unknown) =>
+export const Dependency = (data: BinaryLike | unknown) => validate(validators.dependency, data);
+export const ReproFrameHash = (data: BinaryLike | unknown) =>
   validate(validators.reproFrameHash, data);
-export const ReproEngineVersion = (data: Buffer | string | unknown) =>
+export const ReproEngineVersion = (data: BinaryLike | unknown) =>
   validate(validators.reproEngineVersion, data);
 
-export const Thumbnail = (data: Buffer | string | unknown) => validate(validators.thumbnail, data);
-export const Artist = (data: Buffer | string | unknown) => validate(validators.artist, data);
-export const Metadata = (data: Buffer | string | unknown) => validate(validators.metadata, data);
+export const Thumbnail = (data: BinaryLike | unknown) => validate(validators.thumbnail, data);
+export const Artist = (data: BinaryLike | unknown) => validate(validators.artist, data);
+export const Metadata = (data: BinaryLike | unknown) => validate(validators.metadata, data);
 /** Localized text overrides under `i18n` (title / description / creditLine only). */
-export const LocalizedMetadata = (data: Buffer | string | unknown) =>
+export const LocalizedMetadata = (data: BinaryLike | unknown) =>
   validate(validators.localizedMetadata, data);
-export const Controls = (data: Buffer | string | unknown) => validate(validators.controls, data);
-export const DisplayControls = (data: Buffer | string | unknown) =>
+export const Controls = (data: BinaryLike | unknown) => validate(validators.controls, data);
+export const DisplayControls = (data: BinaryLike | unknown) =>
   validate(validators.displayControls, data);
-export const SafetyControls = (data: Buffer | string | unknown) =>
+export const SafetyControls = (data: BinaryLike | unknown) =>
   validate(validators.safetyControls, data);

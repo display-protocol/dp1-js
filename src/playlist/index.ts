@@ -1,7 +1,7 @@
-import { lookup as dnsLookup } from 'node:dns/promises';
-import { isIP } from 'node:net';
-import { Buffer } from 'node:buffer';
 import { PlaylistItemWithPlaylistsExtension } from '../validate/index.js';
+import { isIP } from '../runtime/ip.js';
+import { platformResolver, type HostResolver, type ResolvedAddress } from '../runtime/dns.js';
+import { toText, utf8ToBytes } from '../runtime/bytes.js';
 
 export {
   parseDisplayAt,
@@ -45,6 +45,21 @@ type PlaylistLike =
   | undefined;
 
 type NetAddressLike = { address?: string; family?: number | string } | null | undefined;
+
+/**
+ * Transport seam for dynamic queries.
+ *
+ * `lookup` is the hostname resolver the SSRF guard uses. Leave it unset to get the platform's
+ * own (Node) or none (browsers, Workers); `validateDynamicQueryRequestURL` below documents
+ * exactly which check that costs. Pass one to override the default on any runtime — a Worker
+ * can supply a DNS-over-HTTPS resolver, and tests can supply a stub.
+ */
+export type DynamicQueryClient =
+  | {
+      fetch?: typeof fetch;
+      lookup?: HostResolver;
+    }
+  | undefined;
 type DynamicQueryResponseMappingLike =
   | {
       ItemsPath?: string;
@@ -102,7 +117,7 @@ export class PlaylistDocument {
   ResolveDynamicQuery(
     ctx: unknown,
     params: Record<string, string>,
-    client: { fetch?: typeof fetch } | undefined,
+    client: DynamicQueryClient,
     opts: { AllowInsecureHTTP?: boolean } | null | undefined
   ) {
     return ResolveDynamicQuery(this as PlaylistLike, ctx, params, client, opts);
@@ -168,9 +183,15 @@ function endpointIPAllowedProduction(addr: NetAddressLike) {
   return false;
 }
 
-async function validateDNSHostProduction(_ctx: unknown, host: string) {
-  const addrs = await dnsLookup(host, { all: true });
-  if (!addrs.length)
+async function validateDNSHostProduction(resolve: HostResolver, host: string) {
+  let addrs: ResolvedAddress[];
+  try {
+    addrs = await resolve(host);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`${ErrDynamicQueryEndpointPolicy.message}: host lookup failed: ${message}`);
+  }
+  if (!addrs?.length)
     throw new Error(`${ErrDynamicQueryEndpointPolicy.message}: host has no addresses`);
   for (const ip of addrs) {
     if (!endpointIPAllowedProduction(ip))
@@ -180,8 +201,30 @@ async function validateDNSHostProduction(_ctx: unknown, host: string) {
   }
 }
 
+/**
+ * SSRF policy for a dynamic-query endpoint.
+ *
+ * Every URL-level check below runs on every runtime: scheme, no userinfo, no fragment,
+ * https-unless-opted-out, and — when the host is an IP literal — the private-range check. Only
+ * the last step, resolving a *hostname* and range-checking what it points at, needs a
+ * resolver.
+ *
+ * | Runtime            | Resolver                    | DNS-rebinding / private-name check |
+ * |--------------------|-----------------------------|------------------------------------|
+ * | Node 22.3+         | automatic (`node:dns`)      | enforced, unchanged                |
+ * | Node < 22.3        | inject via `client.lookup`  | enforced only when injected        |
+ * | Workers / browsers | inject via `client.lookup`  | enforced only when injected        |
+ *
+ * What is weaker without a resolver: a *name* that resolves into a private range (say
+ * `internal.corp` → 10.0.0.1, or a rebinding host) is no longer rejected before the fetch. The
+ * platform absorbs part of that. A Worker's `fetch` egresses from Cloudflare's network and
+ * cannot reach the deployer's LAN or loopback at all. A browser's `fetch` is bound by the same
+ * origin policy — a cross-origin read needs CORS consent from the target, and Private Network
+ * Access gates public→private requests separately. Neither is a substitute for the check, so
+ * inject `client.lookup` when a runtime can resolve names and the endpoint is untrusted.
+ */
 async function validateDynamicQueryRequestURL(
-  ctx: unknown,
+  resolve: HostResolver | null,
   u: URL,
   opts: { AllowInsecureHTTP?: boolean } | null | undefined
 ) {
@@ -206,7 +249,8 @@ async function validateDynamicQueryRequestURL(
     }
     return;
   }
-  await validateDNSHostProduction(ctx, host);
+  // No resolver on this runtime: the URL-level checks above still stand.
+  if (resolve) await validateDNSHostProduction(resolve, host);
 }
 
 async function buildDynamicQueryRequest(
@@ -256,12 +300,13 @@ async function fetchDynamicQueryResponseBody(
   ctx: unknown,
   dq: DynamicQueryLike,
   params: Record<string, string> | undefined,
-  client: { fetch?: typeof fetch } | undefined,
+  client: DynamicQueryClient,
   opts: { AllowInsecureHTTP?: boolean } | null | undefined
 ) {
   const hydrated = HydrateDynamicQueryString(dq?.Query || dq?.query || '', params || {});
   const req = await buildDynamicQueryRequest(ctx, dq, hydrated);
-  await validateDynamicQueryRequestURL(ctx, new URL(req.url), opts);
+  const resolve = client?.lookup ?? platformResolver();
+  await validateDynamicQueryRequestURL(resolve, new URL(req.url), opts);
   const fetchImpl =
     client && typeof client.fetch === 'function' ? client.fetch.bind(client) : fetch;
   let response: Response;
@@ -276,7 +321,7 @@ async function fetchDynamicQueryResponseBody(
     const message = err instanceof Error ? err.message : String(err);
     throw new Error(`${ErrDynamicQueryHTTP.message}: ${message}`);
   }
-  const body = Buffer.from(await response.arrayBuffer());
+  const body = new Uint8Array(await response.arrayBuffer());
   if (!response.ok) throw new Error(`${ErrDynamicQueryHTTP.message}: status ${response.status}`);
   return body;
 }
@@ -293,8 +338,8 @@ function jsonAtDotPath(root: unknown, path: string) {
   return cur;
 }
 
-function graphqlPayload(body: Buffer) {
-  const env = JSON.parse(Buffer.from(body).toString('utf8')) as {
+function graphqlPayload(body: Uint8Array) {
+  const env = JSON.parse(toText(body)) as {
     errors?: Array<{ message?: string }>;
     data?: unknown;
   };
@@ -306,23 +351,23 @@ function graphqlPayload(body: Buffer) {
 }
 
 function extractDynamicItems(
-  body: Buffer,
+  body: Uint8Array,
   profile: string,
   rm: { ItemsPath?: string; itemsPath?: string } | undefined
 ) {
-  const root = JSON.parse(Buffer.from(body).toString('utf8'));
+  const root = JSON.parse(toText(body));
   if (profile === ProfileGraphQLV1) graphqlPayload(body);
   const itemsPath = rm?.ItemsPath || rm?.itemsPath;
   if (!itemsPath) throw new Error(`${ErrDynamicQueryResponse.message}: missing itemsPath`);
   const at = jsonAtDotPath(root, itemsPath);
   if (!Array.isArray(at))
     throw new Error(`${ErrDynamicQueryResponse.message}: itemsPath "${itemsPath}" is not an array`);
-  return at.map(el => Buffer.from(JSON.stringify(el)));
+  return at.map(el => utf8ToBytes(JSON.stringify(el)));
 }
 
-function applyItemMap(raw: Buffer, itemMap: Record<string, string> = {}) {
+function applyItemMap(raw: Uint8Array, itemMap: Record<string, string> = {}) {
   if (!itemMap || !Object.keys(itemMap).length) return raw;
-  const obj = JSON.parse(Buffer.from(raw).toString('utf8'));
+  const obj = JSON.parse(toText(raw));
   const out = { ...obj };
   for (const [dpKey, idxKey] of Object.entries(itemMap)) {
     if (idxKey in obj) {
@@ -330,10 +375,10 @@ function applyItemMap(raw: Buffer, itemMap: Record<string, string> = {}) {
       if (idxKey !== dpKey) delete out[idxKey];
     }
   }
-  return Buffer.from(JSON.stringify(out));
+  return utf8ToBytes(JSON.stringify(out));
 }
 
-function playlistItemsFromDynamicQueryBody(body: Buffer, dq: DynamicQueryLike) {
+function playlistItemsFromDynamicQueryBody(body: Uint8Array, dq: DynamicQueryLike) {
   const profile = dq?.Profile || dq?.profile;
   if (profile !== ProfileHTTPSJSONV1 && profile !== ProfileGraphQLV1)
     throw new Error(`${ErrDynamicQueryUnknownProfile.message}: "${profile}"`);
@@ -345,7 +390,7 @@ function playlistItemsFromDynamicQueryBody(body: Buffer, dq: DynamicQueryLike) {
     const itemJSON = applyItemMap(raw, rm.ItemMap || rm.itemMap || {});
     try {
       PlaylistItemWithPlaylistsExtension(itemJSON);
-      out.push(JSON.parse(Buffer.from(itemJSON).toString('utf8')));
+      out.push(JSON.parse(toText(itemJSON)));
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       throw new Error(`${ErrDynamicQueryItemInvalid.message}: ${message}`);
@@ -358,7 +403,7 @@ export async function PlaylistItemsFromDynamicQuery(
   ctx: unknown,
   dq: DynamicQueryLike,
   params: Record<string, string> | undefined,
-  client: { fetch?: typeof fetch } | undefined,
+  client: DynamicQueryClient,
   opts: { AllowInsecureHTTP?: boolean } | null | undefined
 ) {
   if (!dq) throw new Error(`${ErrDynamicQueryRequest.message}: nil dynamicQuery`);
@@ -369,7 +414,7 @@ export async function PlaylistItemsFromDynamicQuery(
 export async function clonePlaylistWithDynamicQuery(
   p: PlaylistLike,
   params: Record<string, string> | undefined,
-  client: { fetch?: typeof fetch } | undefined,
+  client: DynamicQueryClient,
   opts: { AllowInsecureHTTP?: boolean } | null | undefined
 ) {
   return clonePlaylistWithDynamicQueryCtx(p, undefined, params, client, opts);
@@ -379,7 +424,7 @@ async function clonePlaylistWithDynamicQueryCtx(
   p: PlaylistLike,
   ctx: unknown,
   params: Record<string, string> | undefined,
-  client: { fetch?: typeof fetch } | undefined,
+  client: DynamicQueryClient,
   opts: { AllowInsecureHTTP?: boolean } | null | undefined
 ) {
   if (!p) throw new Error(`${ErrDynamicQueryRequest.message}: nil playlist`);
@@ -404,7 +449,7 @@ export async function ResolveDynamicQuery(
   p: PlaylistLike,
   ctx: unknown,
   params: Record<string, string> | undefined,
-  client: { fetch?: typeof fetch } | undefined,
+  client: DynamicQueryClient,
   opts: { AllowInsecureHTTP?: boolean } | null | undefined
 ) {
   return clonePlaylistWithDynamicQueryCtx(p, ctx, params, client, opts);

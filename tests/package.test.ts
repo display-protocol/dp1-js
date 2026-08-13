@@ -2,6 +2,8 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
+import { builtinModules } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -152,6 +154,67 @@ test('validation runs where code generation from strings is disallowed', async (
     await writeFile(smoke, NO_CODEGEN_SMOKE, 'utf8');
     const result = runNode(['--disallow-code-generation-from-strings', smoke], sandbox);
     assert.equal(result.status, 0, result.stderr);
+  } finally {
+    await rm(sandbox, { recursive: true, force: true });
+  }
+}, 60_000);
+
+// Regression guards for display-protocol/dp1-js#9. The package must load on browsers and on
+// Workers built without `nodejs_compat`, so the default build may not import a `node:` builtin
+// or touch the `Buffer` global. The full-runtime proofs are `npm run smoke:workerd` and
+// `npm run smoke:browser`; these two are the cheap versions that run on every commit.
+
+test('the built package imports no Node builtin', async () => {
+  ensureBuild();
+  // The bundler rewrites `node:crypto` to bare `crypto` in the ESM output, so matching the
+  // `node:` prefix alone would miss a regression. Check against the real builtin list.
+  const builtins = new Set(builtinModules.flatMap(name => [name, `node:${name}`]));
+  const SPECIFIER = /(?:\bfrom\s*|\brequire\s*\(\s*|\bimport\s*\(\s*)["']([^"']+)["']/g;
+
+  for (const file of ['dist/index.js', 'dist/index.cjs']) {
+    const source = await readFile(join(repoRoot, file), 'utf8');
+    const offenders = [...source.matchAll(SPECIFIER)]
+      .map(match => match[1])
+      .filter(specifier => builtins.has(specifier));
+    assert.deepEqual(offenders, [], `${file} imports Node builtins: ${offenders.join(', ')}`);
+  }
+});
+
+// `getBuiltinModule('node:dns/promises')` passes a *string argument*, not a specifier, so no
+// bundler resolves it. That is what lets the Node-only DNS guard in the SSRF check survive in
+// a build browsers and Workers can still load — pin that it stays an argument.
+test('the Node DNS resolver is reached by lookup, never by import', async () => {
+  ensureBuild();
+  const source = await readFile(join(repoRoot, 'dist/index.js'), 'utf8');
+  assert.match(source, /getBuiltinModule\(\s*["']node:dns\/promises["']\s*\)/);
+});
+
+test('the built package bundles for the browser', async () => {
+  ensureBuild();
+  const sandbox = await mkdtemp(join(tmpdir(), 'dp1-js-browser-bundle-'));
+  try {
+    const entry = join(sandbox, 'entry.mjs');
+    await writeFile(
+      entry,
+      `import * as dp1 from ${JSON.stringify(join(repoRoot, 'dist/index.js'))};\nglobalThis.dp1 = dp1;\n`,
+      'utf8'
+    );
+    // `--platform=browser` refuses to resolve `node:` builtins, so this fails outright if a
+    // Node import comes back — and it needs no browser download to say so.
+    const result = spawnSync(
+      'npx',
+      [
+        'esbuild',
+        entry,
+        '--bundle',
+        '--platform=browser',
+        '--format=esm',
+        `--outfile=${join(sandbox, 'bundle.js')}`,
+        '--log-level=warning',
+      ],
+      { cwd: repoRoot, encoding: 'utf8', stdio: 'pipe' }
+    );
+    assert.equal(result.status, 0, result.stderr || result.stdout);
   } finally {
     await rm(sandbox, { recursive: true, force: true });
   }

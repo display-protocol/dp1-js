@@ -26,6 +26,34 @@ export default tseslint.config(
       'no-console': 'off',
       eqeqeq: ['error', 'always'],
       'no-debugger': 'error',
+      // dp1-js ships one build for Node, browsers, and Cloudflare Workers. A `node:` import
+      // breaks browser bundling, and the `Buffer` global exists in neither browsers nor
+      // Workers without `nodejs_compat`. Use `src/runtime/*` instead. See #9 and #24.
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['node:*'],
+              message:
+                'No node: imports in src/ — the build must load on browsers and Workers. Use src/runtime/* (bytes, ip, dns) instead.',
+            },
+          ],
+        },
+      ],
+      'no-restricted-globals': [
+        'error',
+        {
+          name: 'Buffer',
+          message:
+            'The Buffer global is absent on browsers and on Workers without nodejs_compat. Use src/runtime/bytes.js instead.',
+        },
+        {
+          name: 'process',
+          message:
+            'The process global is absent on browsers. Read it off globalThis behind a typeof guard, as src/runtime/dns.ts does.',
+        },
+      ],
     },
   },
   {

@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto';
-
 export type Builder<T> = { build(): T };
 
 export function resolve<T>(value: T | Builder<T>): T {
@@ -13,8 +11,16 @@ export function nowIso(): string {
   return new Date().toISOString();
 }
 
+/**
+ * A v4 UUID from the Web Crypto global, which Node 19+, every modern browser, and Cloudflare
+ * Workers all provide. (Browsers expose `randomUUID` only in secure contexts.)
+ */
 export function generateId(): string {
-  return randomUUID();
+  const webCrypto = globalThis.crypto;
+  if (typeof webCrypto?.randomUUID !== 'function') {
+    throw new Error('dp1: crypto.randomUUID() is unavailable in this runtime');
+  }
+  return webCrypto.randomUUID();
 }
 
 /** Produce a kebab-case slug from free text (generator helper, not schema validation). */

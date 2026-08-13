@@ -1,14 +1,23 @@
-import {
-  createPrivateKey,
-  createPublicKey,
-  sign as nodeSign,
-  verify as nodeVerify,
-} from 'node:crypto';
+import { ed25519 } from '@noble/curves/ed25519.js';
 import { secp256k1 } from '@noble/curves/secp256k1.js';
 import { keccak_256 } from '@noble/hashes/sha3.js';
-import { bytesToHex } from '@noble/hashes/utils.js';
 import { CodedError, ErrNoSignatures, ErrSigInvalid, ErrUnsupportedAlg } from '../errors.js';
-import { payloadHashString, verifyPayloadHash, signingDigest } from './payload.js';
+import {
+  payloadHashString,
+  verifyPayloadHash,
+  signingDigest,
+  verifyEd25519Digest,
+} from './payload.js';
+import {
+  base64ToBytes,
+  bytesToBase64Url,
+  bytesToHex,
+  concatBytes,
+  toText,
+  utf8ToBytes,
+  type BinaryLike,
+} from '../runtime/bytes.js';
+import { decodeHexSignature, ed25519SecretKeyBytes, type Ed25519KeyLike } from './keys.js';
 
 export { payloadHashString as PayloadHashString, verifyPayloadHash as VerifyPayloadHash };
 
@@ -32,9 +41,12 @@ type Verifier = {
   verifySignature(kid: string, sigBytes: Uint8Array, digest: Uint8Array): void;
 };
 type Signer = { alg(): string; sign(digest: Uint8Array): [string, Uint8Array] };
-type PrivateKeyLike = Parameters<typeof createPrivateKey>[0];
-type PublicKeyLike = Parameters<typeof createPublicKey>[0];
+type PrivateKeyLike = Ed25519KeyLike;
+type PublicKeyLike = Ed25519KeyLike;
 type SignatureLike = { alg: string; kid: string; sig: string; payload_hash: string };
+
+// EIP-191 personal_sign prefix for a 32-byte payload, shared by the signer and the verifier.
+const EIP191_PREFIX = utf8ToBytes('\x19Ethereum Signed Message:\n32');
 
 const verifiers = new Map<string, Verifier>();
 
@@ -52,7 +64,7 @@ export function SupportedAlgorithms() {
   return [...verifiers.keys()].sort();
 }
 
-export function SignMulti(raw: Buffer | string, signer: Signer, role: string, ts: string) {
+export function SignMulti(raw: BinaryLike, signer: Signer, role: string, ts: string) {
   const digest = signingDigest(raw);
   const payload_hash = payloadHashString(raw);
   const [kid, sigBytes] = signer.sign(digest);
@@ -62,57 +74,13 @@ export function SignMulti(raw: Buffer | string, signer: Signer, role: string, ts
     ts,
     payload_hash,
     role,
-    sig: Buffer.from(sigBytes).toString('base64url'),
+    sig: bytesToBase64Url(sigBytes),
   };
 }
 
-function ensureBuffer(value: Buffer | Uint8Array | string) {
-  return Buffer.isBuffer(value) ? value : Buffer.from(value);
-}
-
-function ensurePrivateKey(key: PrivateKeyLike | { type?: string } | null | undefined) {
-  if (key && typeof key === 'object' && 'type' in key) {
-    return key;
-  }
-
-  if (typeof key === 'string') {
-    const raw = normalizePrivateKeyBytes(key);
-    return createPrivateKey({ key: raw, format: 'der', type: 'pkcs8' });
-  }
-
-  if (Buffer.isBuffer(key) || key instanceof Uint8Array) {
-    return createPrivateKey({ key: Buffer.from(key), format: 'der', type: 'pkcs8' });
-  }
-
-  return createPrivateKey(key as Parameters<typeof createPrivateKey>[0]);
-}
-
-function normalizePrivateKeyBytes(value: string) {
-  const trimmed = value.trim();
-  const base64Like = /^[A-Za-z0-9+/=_-]+$/.test(trimmed);
-  const hexLike = /^(0x)?[0-9a-fA-F]+$/.test(trimmed);
-
-  if (hexLike) {
-    const clean = trimmed.replace(/^0x/, '');
-    return Buffer.from(clean, 'hex');
-  }
-
-  if (base64Like) {
-    return Buffer.from(trimmed, 'base64');
-  }
-
-  throw new Error('invalid private key encoding');
-}
-
-function ed25519PublicKeyObjectFromRaw(raw: Buffer | Uint8Array) {
-  const der = Buffer.concat([Buffer.from('302a300506032b6570032100', 'hex'), ensureBuffer(raw)]);
-  return createPublicKey({ key: der, format: 'der', type: 'spki' });
-}
-
-export function Ed25519DIDKey(pub: Buffer | Uint8Array) {
-  const key = ensureBuffer(pub);
-  if (key.length !== 32) throw new Error(`ed25519 public key must be 32 bytes, got ${key.length}`);
-  return `${didKeyPrefix}z${encodeBase58btc(Buffer.from(Uint8Array.from([0xed, 0x01, ...key])))}`;
+export function Ed25519DIDKey(pub: Uint8Array) {
+  if (pub.length !== 32) throw new Error(`ed25519 public key must be 32 bytes, got ${pub.length}`);
+  return `${didKeyPrefix}z${encodeBase58btc(Uint8Array.from([0xed, 0x01, ...pub]))}`;
 }
 
 export function Ed25519PublicKeyFromDIDKey(kid: string) {
@@ -131,7 +99,7 @@ export function Ed25519PublicKeyFromDIDKey(kid: string) {
  * The hash is taken over the ASCII of the lowercase hex string, not the address bytes.
  */
 function eip55Checksum(lowerHex: string) {
-  const hash = bytesToHex(keccak_256(Buffer.from(lowerHex, 'ascii')));
+  const hash = bytesToHex(keccak_256(utf8ToBytes(lowerHex)));
   let out = '0x';
   for (let i = 0; i < lowerHex.length; i++) {
     out += parseInt(hash[i], 16) >= 8 ? lowerHex[i].toUpperCase() : lowerHex[i];
@@ -181,12 +149,12 @@ class Ed25519Verifier {
     return AlgEd25519;
   }
   verifySignature(kid: string, sigBytes: Uint8Array, digest: Uint8Array) {
-    const pub = ed25519PublicKeyObjectFromRaw(Ed25519PublicKeyFromDIDKey(kid));
+    const pub = Ed25519PublicKeyFromDIDKey(kid);
     if (sigBytes.length !== 64)
       throw new Error(
         `${ErrSigInvalid.message}: ed25519 signature must be 64 bytes, got ${sigBytes.length}`
       );
-    if (!nodeVerify(null, digest, pub, sigBytes)) throw ErrSigInvalid;
+    if (!verifyEd25519Digest(digest, sigBytes, pub)) throw ErrSigInvalid;
   }
 }
 
@@ -200,9 +168,7 @@ class Eip191Verifier {
       throw new Error(
         `${ErrSigInvalid.message}: ethereum signature must be 65 bytes, got ${sigBytes.length}`
       );
-    const msg = keccak_256(
-      Buffer.concat([Buffer.from('\x19Ethereum Signed Message:\n32'), Buffer.from(digest)])
-    );
+    const msg = keccak_256(concatBytes(EIP191_PREFIX, digest));
     // Wallets (personal_sign / eth_sign, e.g. MetaMask) and dp1-go encode signatures
     // as the Ethereum-standard `r(32) || s(32) || v(1)`; noble's `recoverPublicKey`
     // helper instead expects its own "recovered" layout with the recovery byte first,
@@ -221,29 +187,22 @@ class Eip191Verifier {
 RegisterVerifier(new Ed25519Verifier());
 RegisterVerifier(new Eip191Verifier());
 
-export function NewEd25519Signer(
-  privateKey: PrivateKeyLike | { type?: string } | null | undefined
-) {
-  const key = ensurePrivateKey(privateKey);
+export function NewEd25519Signer(privateKey: PrivateKeyLike) {
+  const key = ed25519SecretKeyBytes(privateKey);
   return {
     alg: () => AlgEd25519,
-    sign: (digest: Uint8Array): [string, Uint8Array] => {
-      const sig = nodeSign(null, digest, key as Parameters<typeof nodeSign>[2]);
-      const publicKey = createPublicKey(key as Parameters<typeof createPublicKey>[0])
-        .export({ format: 'der', type: 'spki' })
-        .subarray(-32);
-      return [Ed25519DIDKey(publicKey), sig];
-    },
+    sign: (digest: Uint8Array): [string, Uint8Array] => [
+      Ed25519DIDKey(ed25519.getPublicKey(key)),
+      ed25519.sign(digest, key),
+    ],
   };
 }
 
-export function NewEthereumSigner(privateKey: Uint8Array | Buffer | string, chainID: number) {
+export function NewEthereumSigner(privateKey: Uint8Array | string, chainID: number) {
   return {
     alg: () => AlgEIP191,
     sign: (digest: Uint8Array): [string, Uint8Array] => {
-      const msg = keccak_256(
-        Buffer.concat([Buffer.from('\x19Ethereum Signed Message:\n32'), Buffer.from(digest)])
-      );
+      const msg = keccak_256(concatBytes(EIP191_PREFIX, digest));
       const recoveredFormat = secp256k1.sign(
         msg,
         privateKey as Parameters<typeof secp256k1.sign>[1],
@@ -260,14 +219,14 @@ export function NewEthereumSigner(privateKey: Uint8Array | Buffer | string, chai
         false
       );
       const addr = `0x${bytesToHex(keccak_256(pub.subarray(1)).subarray(-20))}`;
-      return [EthereumAddressToDIDPKH(addr, chainID), Buffer.from(sig)];
+      return [EthereumAddressToDIDPKH(addr, chainID), sig];
     },
   };
 }
 
 export async function SignMultiEd25519(
-  raw: Buffer | string,
-  privateKey: PrivateKeyLike | { type?: string } | null | undefined,
+  raw: BinaryLike,
+  privateKey: PrivateKeyLike,
   role: string,
   ts: string,
   kid?: string
@@ -281,8 +240,8 @@ export async function SignMultiEd25519(
 }
 
 export async function SignMultiEIP191(
-  raw: Buffer | string,
-  privateKey: Uint8Array | Buffer | string,
+  raw: BinaryLike,
+  privateKey: Uint8Array | string,
   chainID: number,
   role: string,
   ts: string
@@ -290,63 +249,45 @@ export async function SignMultiEIP191(
   return SignMulti(raw, NewEthereumSigner(privateKey, chainID), role, ts);
 }
 
-export function SignLegacyEd25519(
-  raw: Buffer | string,
-  privateKey: PrivateKeyLike | { type?: string } | null | undefined
-) {
-  const key = ensurePrivateKey(privateKey);
-  return `ed25519:${nodeSign(null, signingDigest(raw), key as Parameters<typeof nodeSign>[2]).toString('hex')}`;
+export function SignLegacyEd25519(raw: BinaryLike, privateKey: PrivateKeyLike) {
+  const key = ed25519SecretKeyBytes(privateKey);
+  return `ed25519:${bytesToHex(ed25519.sign(signingDigest(raw), key))}`;
 }
 
-export function VerifyLegacyEd25519(
-  raw: Buffer | string,
-  legacySig: string,
-  pub: PublicKeyLike | Uint8Array | Buffer | string
-) {
+export function VerifyLegacyEd25519(raw: BinaryLike, legacySig: string, pub: PublicKeyLike) {
   if (!legacySig) throw new Error(`${ErrSigInvalid.message}: empty legacy signature`);
   if (!legacySig.startsWith('ed25519:'))
     throw new Error(`${ErrSigInvalid.message}: expected prefix "ed25519:"`);
-  const bytes = decodeLegacySignatureBytes(legacySig.slice(8));
+  const bytes = decodeHexSignature(legacySig.slice(8));
   if (bytes.length !== 64)
     throw new Error(`${ErrSigInvalid.message}: bad signature length ${bytes.length}`);
-  if (!nodeVerify(null, signingDigest(raw), pub as Parameters<typeof nodeVerify>[2], bytes))
-    throw ErrSigInvalid;
-}
-
-function decodeLegacySignatureBytes(encoded: string) {
-  const trimmed = encoded.trim();
-  const hex = trimmed.startsWith('0x') || trimmed.startsWith('0X') ? trimmed.slice(2) : trimmed;
-  if (!/^[0-9a-fA-F]+$/.test(hex) || hex.length % 2 !== 0) {
-    return Buffer.alloc(0);
-  }
-  return Buffer.from(hex, 'hex');
+  if (!verifyEd25519Digest(signingDigest(raw), bytes, pub)) throw ErrSigInvalid;
 }
 
 export function VerifyMultiSignature(
-  raw: Buffer | string,
+  raw: BinaryLike,
   sig: SignatureLike,
-  publicKey?: PublicKeyLike | Uint8Array | Buffer | string
+  publicKey?: PublicKeyLike
 ) {
   verifyPayloadHash(raw, sig.payload_hash);
   const digest = signingDigest(raw);
   const verifier = GetVerifier(sig.alg);
-  const sigBytes = Buffer.from(sig.sig, 'base64url');
+  const sigBytes = base64ToBytes(sig.sig);
   if (sig.alg === AlgEd25519 && publicKey) {
-    if (!nodeVerify(null, digest, publicKey as Parameters<typeof nodeVerify>[2], sigBytes))
-      throw ErrSigInvalid;
+    if (!verifyEd25519Digest(digest, sigBytes, publicKey)) throw ErrSigInvalid;
     return true;
   }
   return verifier.verifySignature(sig.kid, sigBytes, digest);
 }
 
-export function VerifyMultiEd25519(raw: Buffer | string, sig: SignatureLike) {
+export function VerifyMultiEd25519(raw: BinaryLike, sig: SignatureLike) {
   if (String(sig.alg).toLowerCase() !== AlgEd25519)
     throw new CodedError(ErrUnsupportedAlg.message, `"${sig.alg}"`);
   return VerifyMultiSignature(raw, sig);
 }
 
 function decodeBase58btc(input: string) {
-  if (!input) return Buffer.alloc(0);
+  if (!input) return new Uint8Array(0);
 
   let value = 0n;
   for (const char of input) {
@@ -369,11 +310,10 @@ function decodeBase58btc(input: string) {
     leadingZeros++;
   }
 
-  return Buffer.from([...new Array(leadingZeros).fill(0), ...bytes]);
+  return Uint8Array.from([...new Array(leadingZeros).fill(0), ...bytes]);
 }
 
-function encodeBase58btc(input: Buffer | Uint8Array) {
-  const bytes = Buffer.from(input);
+function encodeBase58btc(bytes: Uint8Array) {
   if (bytes.length === 0) return '';
 
   let value = 0n;
@@ -397,8 +337,8 @@ function encodeBase58btc(input: Buffer | Uint8Array) {
   return `${'1'.repeat(leadingZeros)}${out}`;
 }
 
-export function VerifyMultiSignaturesJSON(raw: Buffer | string) {
-  const envelope = JSON.parse(Buffer.isBuffer(raw) ? raw.toString('utf8') : String(raw));
+export function VerifyMultiSignaturesJSON(raw: BinaryLike) {
+  const envelope = JSON.parse(toText(raw));
   if (!Array.isArray(envelope.signatures) || envelope.signatures.length === 0)
     throw ErrNoSignatures;
   const failed = [];
@@ -412,7 +352,7 @@ export function VerifyMultiSignaturesJSON(raw: Buffer | string) {
   return [failed.length === 0, failed.length ? failed : null, null] as const;
 }
 
-export function VerifyPlaylistSignatures(raw: Buffer | string) {
+export function VerifyPlaylistSignatures(raw: BinaryLike) {
   return VerifyMultiSignaturesJSON(raw);
 }
 /**
@@ -422,27 +362,24 @@ export function VerifyPlaylistSignatures(raw: Buffer | string) {
  * (`ChannelBuilder`, `ValidateChannel`, `VerifyChannelSignatures`). Retained for
  * backward compatibility and dp1-go parity; scheduled for removal in the next major.
  */
-export function VerifyPlaylistGroupSignatures(raw: Buffer | string) {
+export function VerifyPlaylistGroupSignatures(raw: BinaryLike) {
   return VerifyMultiSignaturesJSON(raw);
 }
-export function VerifyChannelSignatures(raw: Buffer | string) {
+export function VerifyChannelSignatures(raw: BinaryLike) {
   return VerifyMultiSignaturesJSON(raw);
 }
 
 export const signDP1Playlist = SignLegacyEd25519;
 export const verifyPlaylistSignature = VerifyLegacyEd25519;
 
-export async function verifyPlaylist(
-  playlist: Record<string, unknown>,
-  publicKey: PublicKeyLike | Uint8Array | Buffer | string
-) {
+export async function verifyPlaylist(playlist: Record<string, unknown>, publicKey: PublicKeyLike) {
   if (!playlist || typeof playlist !== 'object') {
     throw new Error('playlist must be an object');
   }
 
   if (Array.isArray((playlist as { signatures?: unknown[] }).signatures)) {
     const verifyFn = VerifyPlaylistSignatures;
-    const [ok] = verifyFn(Buffer.from(JSON.stringify(playlist)));
+    const [ok] = verifyFn(JSON.stringify(playlist));
     return ok;
   }
 
@@ -457,6 +394,6 @@ export async function verifyPlaylist(
   const rawPlaylist = { ...playlist };
   delete rawPlaylist.signature;
   delete rawPlaylist.signatures;
-  VerifyLegacyEd25519(Buffer.from(JSON.stringify(rawPlaylist)), legacySig, publicKey);
+  VerifyLegacyEd25519(JSON.stringify(rawPlaylist), legacySig, publicKey);
   return true;
 }

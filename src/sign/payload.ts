@@ -1,57 +1,77 @@
-import {
-  createHash,
-  createPrivateKey,
-  createPublicKey,
-  sign as nodeSign,
-  verify as nodeVerify,
-} from 'node:crypto';
+import { sha256 } from '@noble/hashes/sha2.js';
+import { ed25519 } from '@noble/curves/ed25519.js';
 import { transform } from '../jcs/index.js';
+import {
+  asBytes,
+  bytesToHex,
+  concatBytes,
+  toText,
+  utf8ToBytes,
+  type BinaryLike,
+  type Bytes,
+} from '../runtime/bytes.js';
+import { ed25519PublicKeyBytes, ed25519SecretKeyBytes, type Ed25519KeyLike } from './keys.js';
 
-function stripSignatureFields(raw: Buffer | string) {
-  const obj = JSON.parse(Buffer.isBuffer(raw) ? raw.toString('utf8') : String(raw));
+function stripSignatureFields(raw: BinaryLike) {
+  const obj = JSON.parse(toText(raw));
   delete obj.signature;
   delete obj.signatures;
   return JSON.stringify(obj);
 }
 
-export function canonicalPayload(raw: Buffer | string) {
+export function canonicalPayload(raw: BinaryLike): Bytes {
   return transform(stripSignatureFields(raw));
 }
 
-export function signingMessage(raw: Buffer | string) {
+export function signingMessage(raw: BinaryLike): Bytes {
   const canon = canonicalPayload(raw);
-  return Buffer.concat([canon, Buffer.from('\n')]);
+  return asBytes(concatBytes(canon, utf8ToBytes('\n')));
 }
 
-export function signingDigest(raw: Buffer | string) {
-  return createHash('sha256').update(signingMessage(raw)).digest();
+export function signingDigest(raw: BinaryLike): Bytes {
+  return asBytes(sha256(signingMessage(raw)));
 }
 
-export function payloadHashString(raw: Buffer | string) {
-  return `sha256:${signingDigest(raw).toString('hex')}`;
+export function payloadHashString(raw: BinaryLike) {
+  return `sha256:${bytesToHex(signingDigest(raw))}`;
 }
 
-export function verifyPayloadHash(raw: Buffer | string, wantHash: string) {
+export function verifyPayloadHash(raw: BinaryLike, wantHash: string) {
   const got = payloadHashString(raw);
   if (got !== wantHash) throw new Error('payload_hash does not match canonical document digest');
 }
 
-export function signEd25519(raw: Buffer | string, privateKey: Parameters<typeof nodeSign>[2]) {
-  return nodeSign(null, signingDigest(raw), privateKey);
+export function signEd25519(raw: BinaryLike, privateKey: Ed25519KeyLike): Bytes {
+  return asBytes(ed25519.sign(signingDigest(raw), ed25519SecretKeyBytes(privateKey)));
 }
 
-export function verifyEd25519(
-  raw: Buffer | string,
-  sig: Buffer,
-  publicKey: Parameters<typeof nodeVerify>[2]
+export function verifyEd25519(raw: BinaryLike, sig: Uint8Array, publicKey: Ed25519KeyLike) {
+  return verifyEd25519Digest(signingDigest(raw), sig, publicKey);
+}
+
+/**
+ * Ed25519 verification that answers false instead of throwing.
+ *
+ * `@noble/curves` rejects a malformed point or scalar by throwing, where Node's
+ * `crypto.verify` returned `false`. Callers here treat every failure the same way, so
+ * normalize to the boolean the call sites were already written against.
+ */
+export function verifyEd25519Digest(
+  digest: Uint8Array,
+  sig: Uint8Array,
+  publicKey: Ed25519KeyLike
 ) {
-  return nodeVerify(null, signingDigest(raw), publicKey, sig);
+  try {
+    return ed25519.verify(sig, digest, ed25519PublicKeyBytes(publicKey));
+  } catch {
+    return false;
+  }
 }
 
-export function loadPrivateKey(key: Parameters<typeof createPrivateKey>[0]) {
-  return createPrivateKey(key);
+export function loadPrivateKey(key: Ed25519KeyLike): Uint8Array {
+  return ed25519SecretKeyBytes(key);
 }
 
-export function loadPublicKey(key: Parameters<typeof createPublicKey>[0]) {
-  return createPublicKey(key);
+export function loadPublicKey(key: Ed25519KeyLike): Uint8Array {
+  return ed25519PublicKeyBytes(key);
 }

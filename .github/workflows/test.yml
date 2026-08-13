@@ -41,8 +41,11 @@ jobs:
     # `wrangler dev` is a long-running process; cap it rather than lean on the 6h default.
     timeout-minutes: 15
 
-    # Node cannot catch a regression here: `new Function` is legal in Node, so validation only
-    # breaks on runtimes that forbid dynamic codegen (display-protocol/dp1-js#24).
+    # Node cannot catch either regression this guards:
+    #   - `new Function` is legal in Node, so validation only breaks on runtimes that forbid
+    #     dynamic codegen (display-protocol/dp1-js#24).
+    #   - `node:*` resolves natively in Node. The smoke Worker is configured WITHOUT
+    #     `nodejs_compat`, so a surviving `node:` import fails to link (display-protocol/dp1-js#9).
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -57,5 +60,37 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build and validate inside workerd
+      - name: Build, validate, sign and verify inside workerd
         run: npm run smoke:workerd
+
+  browser_csp_smoke:
+    runs-on: ubuntu-latest
+    name: Browser (strict CSP) Smoke Test
+    timeout-minutes: 15
+
+    # The case ordinary browser testing misses, and the one MV3 extensions live under: a page
+    # served with `script-src 'self'` and no `'unsafe-eval'`, where `new Function` throws and
+    # neither `Buffer` nor `process` exists (display-protocol/dp1-js#9, #24).
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Not a devDependency: installing `playwright` downloads ~95MB of Chromium, which every
+      # contributor would pay for a smoke test only CI runs.
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@^1.56
+          npx playwright install --with-deps chromium
+
+      - name: Build, sign and verify in Chromium under script-src 'self'
+        run: npm run smoke:browser

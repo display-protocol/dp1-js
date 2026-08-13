@@ -6,7 +6,9 @@ Top-level repo contract for coding agents.
 
 This repository is the **Node.js SDK for [DP-1](https://github.com/display-protocol/dp1)**, rewritten from `dp1-go` while keeping the repo structure, test intent, and module boundaries aligned with the Go implementation.
 
-**Non-goals:** Implementing a full player, renderer, license server, or browser bundle. This library supplies parsing, validation, canonicalization, signing primitives, and merge helpers consistent with DP-1.
+**Non-goals:** Implementing a full player, renderer, or license server. This library supplies parsing, validation, canonicalization, signing primitives, and merge helpers consistent with DP-1.
+
+**Universal runtime.** One build must load on Node, browsers, and Cloudflare Workers. That means no `node:*` imports, no `Buffer`/`process` globals, and no runtime schema compilation (`new Function`/`eval`) on any path reachable from the public API. Use `src/runtime/*` for bytes, IP predicates, and DNS. ESLint enforces the imports and globals; `tests/package.test.ts` enforces the built output; `npm run smoke:workerd` and `npm run smoke:browser` prove the two non-Node targets.
 
 ## Coding defaults
 
@@ -30,6 +32,13 @@ Before considering work complete:
 npm run lint
 npm run type-check
 npm test
+```
+
+A Node suite cannot catch a runtime regression — `new Function` is legal in Node and `node:*` resolves natively. When a change touches `src/runtime/`, signing, or validation, also run:
+
+```bash
+npm run smoke:workerd   # workerd, deliberately without nodejs_compat
+npm run smoke:browser   # Chromium under script-src 'self' (needs Playwright)
 ```
 
 If a change touches signing or canonicalization, add regression tests for the exact payload shape and hash behavior.
