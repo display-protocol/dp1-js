@@ -209,15 +209,19 @@ async function validateDNSHostProduction(resolve: HostResolver, host: string) {
 /**
  * SSRF policy for a dynamic-query endpoint.
  *
- * Every URL-level check below runs on every runtime: scheme, no userinfo, no fragment,
- * https-unless-opted-out, and — when the host is an IP literal — the private-range check. Only
- * the last step, resolving a *hostname* and range-checking what it points at, needs a
- * resolver.
+ * Two independent things gate this, and they are easy to conflate:
+ *
+ * 1. `AllowInsecureHTTP` is a **development escape hatch**, not merely a scheme exemption. It
+ *    turns off the address policy wholesale — literal *and* resolved — because its reason to
+ *    exist is talking to `http://127.0.0.1:port` in tests and local tooling, which the
+ *    private-range check would otherwise reject. Never set it against untrusted input.
+ * 2. With it unset (the default), scheme, userinfo, fragment, and https checks run, then the
+ *    private-range check on IP literals — on *every* runtime. Only the last step, resolving a
+ *    *hostname* and range-checking what it points at, needs a resolver.
  *
  * | Runtime            | Resolver                    | DNS-rebinding / private-name check |
  * |--------------------|-----------------------------|------------------------------------|
  * | Node 22.3+         | automatic (`node:dns`)      | enforced, unchanged                |
- * | Node < 22.3        | inject via `client.lookup`  | enforced only when injected        |
  * | Workers / browsers | inject via `client.lookup`  | enforced only when injected        |
  *
  * What is weaker without a resolver: a *name* that resolves into a private range (say
@@ -245,6 +249,9 @@ async function validateDynamicQueryRequestURL(
     throw new Error(
       `${ErrDynamicQueryEndpointPolicy.message}: only https is allowed (set AllowInsecureHTTP for http)`
     );
+  // Escape hatch: `AllowInsecureHTTP` also stands down the address policy, so local endpoints
+  // such as http://127.0.0.1:port work. Pre-existing behaviour, pinned by the tests in
+  // `tests/playlist/dynamicquery.test.ts` and `tests/playlist/dns-seam.test.ts`.
   if (allowInsecure) return;
   const host =
     u.hostname.startsWith('[') && u.hostname.endsWith(']') ? u.hostname.slice(1, -1) : u.hostname;

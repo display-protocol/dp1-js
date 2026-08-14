@@ -274,9 +274,17 @@ through the async `subtle.exportKey`, which would force the whole signing API to
 ### The dynamicQuery SSRF guard
 
 `ResolveDynamicQuery` and `PlaylistItemsFromDynamicQuery` validate the endpoint before fetching
-it. Every URL-level check runs on every runtime: scheme, no userinfo, no fragment,
-https-unless-`AllowInsecureHTTP`, and — when the host is an IP literal — a private-range check
-covering loopback, RFC 1918, link-local, unique-local, and IPv4-mapped forms.
+it. By default — that is, with `AllowInsecureHTTP` unset — every URL-level check runs on every
+runtime: scheme, no userinfo, no fragment, https-only, and, when the host is an IP literal, a
+private-range check covering loopback, RFC 1918, link-local, unique-local, and IPv4-mapped
+forms.
+
+> [!WARNING]
+> `AllowInsecureHTTP: true` is a **development escape hatch, not just a scheme exemption**. It
+> stands down the private-address policy as well, so `http://127.0.0.1:8080` and
+> `http://169.254.169.254` both become reachable. That is what makes it useful for local
+> servers and test fixtures, and why it must never be set for untrusted endpoints. This is
+> long-standing behaviour, unchanged here.
 
 Resolving a _hostname_ to its addresses is the one part that needs a platform DNS resolver, and
 browsers and Workers have none: neither can look a name up before fetching it.

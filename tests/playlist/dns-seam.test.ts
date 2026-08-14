@@ -275,3 +275,63 @@ test('injecting a resolver restores the check on a runtime that has none', async
     );
   });
 });
+
+// `AllowInsecureHTTP` is a development escape hatch, not a scheme exemption: it stands down the
+// private-address policy as well, which is what lets the dynamicQuery suite talk to local test
+// servers on http://127.0.0.1:port. Long-standing behaviour, previously implicit — pinned here
+// so it is a decision on the record rather than an accident, and so that tightening it later is
+// a visible, deliberate test change.
+
+test('AllowInsecureHTTP stands down the address policy, literals included', async () => {
+  for (const endpoint of [
+    'http://127.0.0.1:8080/x',
+    'http://10.0.0.1/x',
+    'http://169.254.169.254/x',
+    'http://[::1]/x',
+    'https://127.0.0.1/x',
+  ]) {
+    const client = okFetch();
+    const items = await PlaylistItemsFromDynamicQuery(undefined, { ...DQ, endpoint }, {}, client, {
+      AllowInsecureHTTP: true,
+    });
+    assert.equal(items.length, 1, endpoint);
+    assert.equal(client.calls.length, 1, `${endpoint}: should reach fetch`);
+  }
+});
+
+test('AllowInsecureHTTP does not skip a resolver when one is injected', async () => {
+  // The address policy stands down, so the resolver is not consulted at all — the request goes
+  // straight out. Pinned because "insecure implies unchecked" must be the whole story: a caller
+  // must not be able to believe an injected resolver is still guarding them here.
+  const seen: string[] = [];
+  const client = {
+    ...okFetch(),
+    lookup: async (host: string) => {
+      seen.push(host);
+      return [{ address: '127.0.0.1', family: 4 }];
+    },
+  };
+  const items = await PlaylistItemsFromDynamicQuery(
+    undefined,
+    { ...DQ, endpoint: 'http://internal.corp/artworks' },
+    {},
+    client,
+    { AllowInsecureHTTP: true }
+  );
+  assert.equal(items.length, 1);
+  assert.deepEqual(seen, [], 'no resolution happens once the policy has stood down');
+});
+
+test('the escape hatch is opt-in: unset means the policy is fully active', async () => {
+  // The mirror image of the two tests above, so a regression that flipped the default would
+  // fail here rather than silently widening the guard.
+  for (const endpoint of ['http://127.0.0.1:8080/x', 'https://127.0.0.1/x', 'https://[::1]/x']) {
+    const client = okFetch();
+    await assert.rejects(
+      () => PlaylistItemsFromDynamicQuery(undefined, { ...DQ, endpoint }, {}, client, null),
+      (err: Error) => err.message.startsWith(ErrDynamicQueryEndpointPolicy.message),
+      endpoint
+    );
+    assert.deepEqual(client.calls, [], `${endpoint}: must not reach fetch`);
+  }
+});

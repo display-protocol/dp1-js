@@ -28,7 +28,11 @@ export type BytesEncoding =
   | 'base64url'
   | 'latin1'
   | 'binary'
-  | 'ascii';
+  | 'ascii'
+  | 'utf16le'
+  | 'utf-16le'
+  | 'ucs2'
+  | 'ucs-2';
 
 /**
  * A `Uint8Array` that still answers `.toString(encoding)` the way `Buffer` does.
@@ -71,6 +75,11 @@ export class Bytes extends Uint8Array {
       case 'ascii':
         // `Buffer`'s 'ascii' masks the high bit rather than replacing the byte.
         return binaryString(this.map(byte => byte & 0x7f));
+      case 'utf16le':
+      case 'utf-16le':
+      case 'ucs2':
+      case 'ucs-2':
+        return utf16leString(this);
       default:
         throw new TypeError(`dp1: unsupported encoding "${String(encoding)}"`);
     }
@@ -109,6 +118,27 @@ function binaryString(bytes: Uint8Array): string {
   let out = '';
   for (let i = 0; i < bytes.length; i += CHUNK) {
     out += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return out;
+}
+
+/**
+ * Decode little-endian UTF-16, matching `Buffer`'s `utf16le` / `ucs2` family.
+ *
+ * Hand-rolled rather than `new TextDecoder('utf-16le')`: workerd only guarantees the UTF-8
+ * decoder, so relying on the label would work on Node and browsers and throw on Workers —
+ * exactly the split-runtime behaviour this module exists to avoid. Surrogate pairs need no
+ * special handling, since JS strings are UTF-16 code units already; a trailing odd byte is
+ * dropped, as `Buffer` does.
+ */
+function utf16leString(bytes: Uint8Array): string {
+  const units = bytes.length >> 1;
+  let out = '';
+  for (let start = 0; start < units; start += CHUNK) {
+    const end = Math.min(start + CHUNK, units);
+    const codes = new Array<number>(end - start);
+    for (let i = start; i < end; i++) codes[i - start] = bytes[i * 2] | (bytes[i * 2 + 1] << 8);
+    out += String.fromCharCode(...codes);
   }
   return out;
 }

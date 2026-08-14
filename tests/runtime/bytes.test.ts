@@ -26,10 +26,26 @@ const SAMPLES = [
 ];
 
 test('Bytes.toString matches Buffer for every supported encoding', () => {
+  // The full set `Buffer` accepts — `JcsTransform` used to return a Buffer, so dropping any of
+  // these would be a public API regression for existing Node consumers.
+  const ENCODINGS = [
+    'utf8',
+    'utf-8',
+    'hex',
+    'base64',
+    'base64url',
+    'latin1',
+    'binary',
+    'ascii',
+    'utf16le',
+    'utf-16le',
+    'ucs2',
+    'ucs-2',
+  ] as const;
   for (const sample of SAMPLES) {
     const bytes = Bytes.from(sample);
     const buffer = Buffer.from(sample);
-    for (const encoding of ['utf8', 'hex', 'base64', 'base64url', 'latin1', 'ascii'] as const) {
+    for (const encoding of ENCODINGS) {
       assert.equal(bytes.toString(encoding), buffer.toString(encoding), `${encoding} of ${sample}`);
     }
     // `Buffer`'s default is utf8; so is ours.
@@ -38,7 +54,31 @@ test('Bytes.toString matches Buffer for every supported encoding', () => {
 });
 
 test('Bytes.toString rejects an unknown encoding rather than guessing', () => {
-  assert.throws(() => Bytes.from([1, 2, 3]).toString('utf16le' as never), TypeError);
+  // Something `Buffer` rejects too, so the two stay in step.
+  assert.throws(() => Bytes.from([1, 2, 3]).toString('base32' as never), TypeError);
+  assert.throws(() => Buffer.from([1, 2, 3]).toString('base32' as never));
+});
+
+test('utf16le matches Buffer on odd lengths and surrogate pairs', () => {
+  const cases = [
+    [0x41, 0x00, 0x42, 0x00], // "AB"
+    [0x41, 0x00, 0x42], // trailing odd byte is dropped, as Buffer does
+    [0x41], // a single byte decodes to the empty string
+    [], // empty
+    [0x3d, 0xd8, 0x00, 0xde], // a surrogate pair: U+1F600
+  ];
+  for (const bytes of cases) {
+    for (const encoding of ['utf16le', 'ucs2', 'ucs-2', 'utf-16le'] as const) {
+      assert.equal(
+        Bytes.from(bytes).toString(encoding),
+        Buffer.from(bytes).toString(encoding),
+        `${encoding} of ${JSON.stringify(bytes)}`
+      );
+    }
+  }
+  // Spanning the fromCharCode chunk boundary must not corrupt the output.
+  const big = new Uint8Array(randomBytes(0x8000 * 2 + 6));
+  assert.equal(Bytes.from(big).toString('utf16le'), Buffer.from(big).toString('utf16le'));
 });
 
 test('Bytes is a real Uint8Array', () => {
