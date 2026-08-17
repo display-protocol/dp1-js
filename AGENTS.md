@@ -44,6 +44,11 @@ Default sequence:
 
 For small, low-risk fixes the sequence can compress, but work stays scoped, verified, and traceable.
 
+## Issues and PRs
+
+- Before starting work on an issue, check it for linked PRs, branches, or an assignee. If someone is already on it, coordinate there instead of opening a duplicate.
+- When opening a PR, link the tracking issue in the description (`Closes #N`). If there is no issue, say so in the PR body.
+
 ## Definition of done
 
 A task is complete only when:
