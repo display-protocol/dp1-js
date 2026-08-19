@@ -74,9 +74,11 @@ After implementation, run a review loop before merge or release preparation.
 
 - Cursor reviewer agent: `.cursor/agents/reviewer.md`
 - OpenCode reviewer (optional): `opencode.json` command `review`
+- Claude Code: `CLAUDE.md` imports this file; no separate rules
 
 ## Authoritative tool-specific files
 
+- Claude Code entrypoint: `CLAUDE.md` (imports `AGENTS.md`)
 - Cursor rules: `.cursor/rules/`
 - Cursor sub-agents: `.cursor/agents/`
 - Shared review prompt: `prompts/code-review.md`
