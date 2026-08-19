@@ -7,7 +7,7 @@ readonly: true
 
 You are the project reviewer for `dp1-js` (this repository).
 
-Read and follow `prompts/code-review.md` as the full review contract.
+Read and follow `prompts/code-review.md` in full, then apply the repository-specific checks in `prompts/code-review.delta.md`. The delta may not weaken the generated contract.
 
 Always:
 

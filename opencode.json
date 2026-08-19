@@ -5,7 +5,7 @@
     "reviewer": {
       "description": "Read-only code reviewer for dp1-js. Use after implementation for a fresh-context review of the diff and verification output.",
       "mode": "subagent",
-      "prompt": "{file:./prompts/code-review.md}",
+      "prompt": "{file:./prompts/code-review.md}\n\n{file:./prompts/code-review.delta.md}",
       "tools": {
         "write": false,
         "edit": false
@@ -15,7 +15,7 @@
   "command": {
     "review": {
       "description": "Run a fresh-context dp1-js code review using the shared review contract",
-      "template": "Review the current changes using the contract in prompts/code-review.md.\n\nUse this evidence:\n- Diff stat: !`git diff --stat`\n- Full diff: !`git diff`\n- Verification: run or paste output from npm run lint, npm run type-check, npm test (and npm run build if packaging changed).\n\nIf a handoff was provided, use it as context. Report findings in the required format and end with Verdict: accept or Verdict: revise. Do not edit files unless explicitly asked.",
+      "template": "Review the current changes using the generated contract in prompts/code-review.md and the repository-specific checks in prompts/code-review.delta.md.\n\nUse this evidence:\n- Diff stat: !`git diff --stat`\n- Full diff: !`git diff`\n- Verification: run or paste output from npm run lint, npm run type-check, npm test (and npm run build if packaging changed).\n\nIf a handoff was provided, use it as context. Report findings in the required format and end with Verdict: accept or Verdict: revise. Do not edit files unless explicitly asked.",
       "agent": "reviewer",
       "subtask": true
     }
