@@ -44,6 +44,11 @@ Default sequence:
 
 For small, low-risk fixes the sequence can compress, but work stays scoped, verified, and traceable.
 
+## Issues and PRs
+
+- Before starting work on an issue, check it for linked PRs, branches, or an assignee. If someone is already on it, coordinate there instead of opening a duplicate.
+- When opening a PR, link the tracking issue in the description (`Closes #N`). If there is no issue, say so in the PR body.
+
 ## Definition of done
 
 A task is complete only when:
@@ -69,9 +74,11 @@ After implementation, run a review loop before merge or release preparation.
 
 - Cursor reviewer agent: `.cursor/agents/reviewer.md`
 - OpenCode reviewer (optional): `opencode.json` command `review`
+- Claude Code: `CLAUDE.md` imports this file; no separate rules
 
 ## Authoritative tool-specific files
 
+- Claude Code entrypoint: `CLAUDE.md` (imports `AGENTS.md`)
 - Cursor rules: `.cursor/rules/`
 - Cursor sub-agents: `.cursor/agents/`
 - Shared review prompt: `prompts/code-review.md`
