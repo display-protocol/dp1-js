@@ -1,3 +1,5 @@
+import { asBytes, toText, utf8ToBytes, type BinaryLike, type Bytes } from '../runtime/bytes.js';
+
 function escapeString(value: string) {
   return JSON.stringify(value);
 }
@@ -21,7 +23,12 @@ function canonicalize(value: unknown): string {
   throw new Error(`dp1: unsupported JSON value type: ${typeof value}`);
 }
 
-export function transform(input: Buffer | string) {
-  const text = Buffer.isBuffer(input) ? input.toString('utf8') : String(input);
-  return Buffer.from(canonicalize(JSON.parse(text)), 'utf8');
+/**
+ * Canonicalize a JSON document (RFC 8785 JCS) and return the UTF-8 bytes.
+ *
+ * Returns `Bytes`, a `Uint8Array` that still answers `.toString('utf8')` the way the
+ * `Buffer` this used to return did.
+ */
+export function transform(input: BinaryLike): Bytes {
+  return asBytes(utf8ToBytes(canonicalize(JSON.parse(toText(input)))));
 }

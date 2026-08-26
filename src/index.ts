@@ -1,4 +1,5 @@
 import * as errors from './errors.js';
+import { toText, type BinaryLike } from './runtime/bytes.js';
 export { errors };
 export {
   CodedError,
@@ -23,6 +24,9 @@ export {
   clonePlaylistWithDynamicQuery,
   ResolveDynamicQuery,
 } from './playlist/index.js';
+export type { DynamicQueryClient } from './playlist/index.js';
+export type { HostResolver, ResolvedAddress } from './runtime/dns.js';
+export { Bytes, type BinaryLike, type BytesEncoding } from './runtime/bytes.js';
 export {
   parseDisplayAt,
   parseDisplayAtNanoseconds,
@@ -186,9 +190,9 @@ export function parseDP1Playlist(input: Parameters<typeof parsePlaylist>[0]) {
   }
 }
 
-function decodeJSON(data: Buffer | string, label: string) {
+function decodeJSON(data: BinaryLike, label: string) {
   try {
-    return JSON.parse(Buffer.isBuffer(data) ? data.toString('utf8') : String(data));
+    return JSON.parse(toText(data));
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     throw new Error(`dp1: decode ${label}: ${message}`);
@@ -210,7 +214,7 @@ function assertArray(value: unknown, field: string, label: string) {
   if (!Array.isArray(value)) throw new Error(`dp1: decode ${label}: field ${field} must be array`);
 }
 
-export function ParseAndValidatePlaylist(data: Buffer | string) {
+export function ParseAndValidatePlaylist(data: BinaryLike) {
   try {
     SchemaHooks.PlaylistCoreSchemaValidate(data);
   } catch (err) {
@@ -227,7 +231,7 @@ export function ParseAndValidatePlaylist(data: Buffer | string) {
   return doc;
 }
 
-export function ParseAndValidatePlaylistWithPlaylistsExtension(data: Buffer | string) {
+export function ParseAndValidatePlaylistWithPlaylistsExtension(data: BinaryLike) {
   try {
     SchemaHooks.PlaylistWithPlaylistsExtensionSchemaValidate(data);
   } catch (err) {
@@ -247,7 +251,7 @@ export function ParseAndValidatePlaylistWithPlaylistsExtension(data: Buffer | st
  * (`ChannelBuilder`, `ValidateChannel`, `VerifyChannelSignatures`). Retained for
  * backward compatibility and dp1-go parity; scheduled for removal in the next major.
  */
-export function ParseAndValidatePlaylistGroup(data: Buffer | string) {
+export function ParseAndValidatePlaylistGroup(data: BinaryLike) {
   try {
     SchemaHooks.PlaylistGroupSchemaValidate(data);
   } catch (err) {
@@ -261,7 +265,7 @@ export function ParseAndValidatePlaylistGroup(data: Buffer | string) {
   return doc;
 }
 
-export function ParseAndValidateRefManifest(data: Buffer | string) {
+export function ParseAndValidateRefManifest(data: BinaryLike) {
   try {
     SchemaHooks.RefManifestSchemaValidate(data);
   } catch (err) {
@@ -275,7 +279,7 @@ export function ParseAndValidateRefManifest(data: Buffer | string) {
   return doc;
 }
 
-export function ParseAndValidateChannel(data: Buffer | string) {
+export function ParseAndValidateChannel(data: BinaryLike) {
   try {
     SchemaHooks.ChannelExtensionSchemaValidate(data);
   } catch (err) {

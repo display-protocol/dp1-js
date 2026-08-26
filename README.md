@@ -9,7 +9,7 @@ Node.js SDK for the [DP-1 protocol](https://github.com/display-protocol/dp1), ke
 
 `dp1-js` provides parsing, validation, canonicalization, hashing, and signing helpers for DP-1 playlists, playlist groups, ref manifests, and Feral File channel documents.
 
-It is designed for Node.js 22+ and ships dual ESM/CJS entrypoints through the package root. Schema validation is precompiled at package build time, so it also runs on Node-compatible runtimes that forbid dynamic code generation — Cloudflare Workers being the tested one (see [Edge runtimes](#edge-runtimes-cloudflare-workers)).
+It ships dual ESM/CJS entrypoints through the package root and runs unmodified on Node.js 22.3+, browsers, and Cloudflare Workers from that single build — no `node:` imports, no runtime schema compilation (see [Runtime support](#runtime-support)).
 
 ## Features
 
@@ -122,7 +122,7 @@ const rawPlaylist = JSON.stringify({
 });
 
 const privateKey = '0x...';
-const publicKey = Buffer.from('...');
+const publicKey = new Uint8Array(32); // raw key, PEM/DER, or a Node KeyObject
 
 const signature = signDP1Playlist(rawPlaylist, privateKey);
 
@@ -174,13 +174,13 @@ Timezone rules (Playlist Extension §3.5.2):
 ## API Notes
 
 - `parseDP1Playlist(json)` returns a `{ playlist, error }` result for already-parsed JSON input (shape-only; not full schema).
-- `ValidatePlaylist(data, options?)` runs AJV against the core playlist schema. `requireSignatures` defaults to `true`; set `false` for unsigned drafts. Accepts `Buffer`, JSON string, or a parsed object.
+- `ValidatePlaylist(data, options?)` runs AJV against the core playlist schema. `requireSignatures` defaults to `true`; set `false` for unsigned drafts. Accepts a `Uint8Array` (including a `Buffer`), a JSON string, or a parsed object.
 - `ValidateChannel` and `ValidatePlaylistWithPlaylistsExtension` use the same `requireSignatures` option, as does the deprecated `ValidatePlaylistGroup`.
 - Leaf helpers such as `ValidateNote`, `ValidateEntity`, `ValidateDisplayPrefs`, `ValidateProvenanceBlock`, `ValidateLocalizedMetadata`, and `ValidateRefManifest` run AJV against the matching schema / `$defs` (builders use these on `build()`).
 - `PlaylistItemBuilder` carries the playlists-extension item fields: `.note()`, `.displayAt()`, and `.inlineManifest(manifest | RefManifestBuilder)`. Setting any of them validates the item against the composed core + extension schema instead of core alone, so a malformed inline manifest fails at `build()`.
 - `RefManifestBuilder` covers the whole manifest: `.metadata(MetadataBuilder)`, `.controls(ControlsBuilder)`, and `.i18n({ locale: LocalizedMetadataBuilder })` / `.addLocalized(locale, …)`. The `i18n` write sites take `LocalizedMetadataOverride` — `LocalizedMetadata` with `artists` / `tags` / `thumbnails` closed off — so a full `Metadata` value cannot stand in for a locale override; reading back gives you a plain `LocalizedMetadata`. `MetadataBuilder` has `.artists()` / `.addArtist()` and `.thumbnails()` / `.addThumbnail(key, …)`; `LocalizedMetadataBuilder` covers the three localizable fields (`title`, `description`, `creditLine`).
 - Leaf builders (`NoteBuilder`, `DisplayPrefsBuilder`, …) and document builders (`PlaylistBuilder`, `ChannelBuilder`, `RefManifestBuilder`, `PlaylistItemBuilder`, and the deprecated `PlaylistGroupBuilder`) are exported from the package root. Builder `Playlist`/`PlaylistItem` draft shapes stay internal to avoid colliding with the looser parse types exported as `Playlist` / `PlaylistItem`.
-- `ParseAndValidatePlaylist(data)` and `ParseAndValidateChannel(data)` accept raw JSON as `Buffer` or string and require signatures (multi-sig or legacy).
+- `ParseAndValidatePlaylist(data)` and `ParseAndValidateChannel(data)` accept raw JSON as a `Uint8Array` (including a `Buffer`) or a string and require signatures (multi-sig or legacy).
 - `signDP1Playlist(raw, privateKey)` returns a legacy `ed25519:<hex>` signature string for v1.0.x playlists.
 - `verifyPlaylistSignature(raw, signature, publicKey)` throws if verification fails.
 - `SignMultiEIP191(raw, privateKey, chainID, role, ts)` signs with `personal_sign` semantics and emits the Ethereum-standard 65-byte `r || s || v` signature (`v` = 27/28), base64url-encoded, with a `did:pkh:eip155:<chainID>:<address>` `kid`. Verification accepts `v` of either 27/28 (wallets) or 0/1 (`dp1-go`), so signatures interoperate with wallets and the Go reference in both directions.
@@ -191,20 +191,134 @@ Timezone rules (Playlist Extension §3.5.2):
 - `computeActiveSet(playlist, now, localTimezone?)` activates `displayAt` scheduling whenever at least one item has that field; otherwise it returns all items. `now` accepts a `Date` (millisecond precision) or epoch-nanoseconds `bigint` for exact sub-millisecond scheduling. Unresolvable `displayAt` values are skipped.
 - `nextDisplayAt(playlist, now, localTimezone?)` returns the soonest future resolvable `displayAt`. With `bigint` `now`, it returns epoch nanoseconds; with `Date` `now`, it returns a `Date` rounded up to avoid early timers.
 
-## Edge runtimes (Cloudflare Workers)
+## Runtime support
 
-Validation never compiles a schema at runtime. AJV normally builds each validator with `new Function(...)` on first use, which throws `Code generation from strings disallowed for this context` on workerd and other runtimes that disable dynamic codegen — and only there, so a green Node test run says nothing about it ([#24](https://github.com/display-protocol/dp1-js/issues/24)). The schemas are instead compiled to plain JavaScript ([AJV standalone](https://ajv.js.org/standalone.html)) when the package is built, so validation, every builder's `build()`, and every `ParseAndValidate*` work unchanged on Workers.
+One build runs on Node.js 22.3+, browsers, and Cloudflare Workers. Each target is verified by its
+own smoke test, because a green Node suite proves nothing about the other two — `new Function`
+is legal in Node and `node:*` resolves natively there.
 
-The Worker still needs Node compatibility, as it always has: the package root reaches `crypto`, `net`, and `dns` through the signing and playlist modules, and `Buffer` is used throughout. Both keys are required in `wrangler.toml` — the flag alone is not enough:
+| Target                                     | Verified by                        |
+| ------------------------------------------ | ---------------------------------- |
+| Node.js 22.3+                              | the unit suite (`npm test`)        |
+| Cloudflare Workers, **no** `nodejs_compat` | `npm run smoke:workerd`            |
+| Browsers under `script-src 'self'`         | `npm run smoke:browser` (Chromium) |
 
-```toml
-compatibility_date = "2024-09-23" # or later
-compatibility_flags = ["nodejs_compat"]
+Both smoke tests run in CI.
+
+### No runtime schema compilation
+
+AJV normally builds each validator with `new Function(...)` on first use, which throws
+`Code generation from strings disallowed for this context` on workerd, under a strict CSP, and
+in MV3 extensions ([#24](https://github.com/display-protocol/dp1-js/issues/24)). The schemas are
+instead compiled to plain JavaScript ([AJV standalone](https://ajv.js.org/standalone.html)) when
+the package is built, so validation, every builder's `build()`, and every `ParseAndValidate*`
+work everywhere. AJV is a build-time dependency only: installing `dp1-js` pulls in
+`@noble/curves` and `@noble/hashes` and nothing else.
+
+### No Node built-ins
+
+The package imports no `node:*` module ([#9](https://github.com/display-protocol/dp1-js/issues/9)).
+
+| Was                                  | Now                                                               |
+| ------------------------------------ | ----------------------------------------------------------------- |
+| `node:crypto` Ed25519 sign/verify    | `@noble/curves` — synchronous, so the API stays synchronous       |
+| `node:crypto` `createHash('sha256')` | `@noble/hashes`                                                   |
+| `node:crypto` `randomUUID`           | `globalThis.crypto.randomUUID()`                                  |
+| `node:net` `isIP`                    | a pure predicate, differential-tested against `node:net`          |
+| `node:buffer` / the `Buffer` global  | `Uint8Array` throughout                                           |
+| `node:dns` SSRF lookup               | an injectable resolver; see [below](#the-dynamicquery-ssrf-guard) |
+
+A Worker therefore needs neither `nodejs_compat` nor any particular compatibility date. Setting
+them does no harm, but nothing here requires them.
+
+**One browser caveat.** Builders call `crypto.randomUUID()` to mint document ids, and browsers
+expose it only in a [secure context](https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts)
+— HTTPS, or `localhost`. On a plain `http://` page served from anything else, every `build()`
+throws `dp1: crypto.randomUUID() is unavailable in this runtime`. Node and Workers are
+unaffected. Set the id yourself (`.id(...)`) if you must run on insecure origins.
+
+**Bytes in and out.** Anywhere the API accepted a `Buffer` it now accepts any `Uint8Array` —
+`Buffer` is a `Uint8Array` subclass, so existing Node callers are unaffected. Functions that
+returned a `Buffer` (notably `JcsTransform`) return a `Uint8Array` that still answers
+`.toString('utf8' | 'hex' | 'base64' | 'base64url' | …)`. It is not a `Buffer`, so
+`Buffer.isBuffer()` on it is `false`; wrap it with `Buffer.from(...)` if some downstream API
+insists on the real thing.
+
+**Signing keys.** `SignMultiEd25519` and friends accept:
+
+| Form                                     | Notes                                     |
+| ---------------------------------------- | ----------------------------------------- |
+| raw 32 bytes (`Uint8Array`)              | the natural shape for a browser or Worker |
+| Node `KeyObject`                         | read via `key.export({ format: 'jwk' })`  |
+| JWK, bare or as `{ key, format: 'jwk' }` | `{ kty: 'OKP', crv: 'Ed25519', d, x }`    |
+| PEM / DER (PKCS#8 private, SPKI public)  | parsed structurally, unencrypted only     |
+| hex or base64 string                     | of the raw key or of the DER              |
+
+Signatures are byte-identical to the previous `node:crypto` output, so `dp1-go`
+interoperability is unchanged.
+
+Two forms need one extra line, because both are unreadable synchronously without Node:
+
+```js
+// Passphrase-protected keys: decrypt with Node first, then pass the KeyObject.
+const key = createPrivateKey({ key: encryptedPem, passphrase });
+
+// Web Crypto CryptoKey: export it, then pass the JWK.
+const jwk = await crypto.subtle.exportKey('jwk', cryptoKey);
 ```
 
-`nodejs_compat` only provides the Node built-ins and globals this package needs (including `Buffer`) from compatibility date 2024-09-23 onward. With an earlier date, the Worker fails to bundle with `Could not resolve "crypto"` and friends. That configuration — with a current date — is what the smoke test runs and the only one this package is verified on: the library stays Node-targeted, so a plain browser is still out of reach regardless of how validation is compiled.
+Both throw an error naming the fix rather than failing obscurely. Decrypting PKCS#8 in-library
+would mean shipping PBKDF2 and AES for a Node-only input shape; `CryptoKey` can only be read
+through the async `subtle.exportKey`, which would force the whole signing API to become async.
 
-AJV is a build-time dependency only; installing `dp1-js` pulls in `@noble/curves` and `@noble/hashes` and nothing else. `npm run smoke:workerd` runs the package inside `wrangler dev --local` and asserts both an accepted and a rejected document; it also runs in CI.
+### The dynamicQuery SSRF guard
+
+`ResolveDynamicQuery` and `PlaylistItemsFromDynamicQuery` validate the endpoint before fetching
+it. By default — that is, with `AllowInsecureHTTP` unset — every URL-level check runs on every
+runtime: scheme, no userinfo, no fragment, https-only, and, when the host is an IP literal, a
+private-range check covering loopback, RFC 1918, link-local, unique-local, and IPv4-mapped
+forms.
+
+> [!WARNING]
+> `AllowInsecureHTTP: true` is a **development escape hatch, not just a scheme exemption**. It
+> stands down the private-address policy as well, so `http://127.0.0.1:8080` and
+> `http://169.254.169.254` both become reachable. That is what makes it useful for local
+> servers and test fixtures, and why it must never be set for untrusted endpoints. This is
+> long-standing behaviour, unchanged here.
+
+Resolving a _hostname_ to its addresses is the one part that needs a platform DNS resolver, and
+browsers and Workers have none: neither can look a name up before fetching it.
+
+| Runtime           | Resolver                   | Hostname → private-address check |
+| ----------------- | -------------------------- | -------------------------------- |
+| Node 22.3+        | found automatically        | enforced, unchanged              |
+| Node < 22.3       | inject via `client.lookup` | enforced only when injected      |
+| Workers, browsers | inject via `client.lookup` | enforced only when injected      |
+
+On Node the resolver is located through `process.getBuiltinModule('node:dns/promises')` — a
+function call, not an import — so the check keeps working with no code change while the build
+stays free of `node:` specifiers.
+
+What is weaker without a resolver: a _name_ that points into a private range (`internal.corp` →
+`10.0.0.1`, or a DNS-rebinding host) is no longer rejected before the fetch. IP literals are
+still rejected. The platform absorbs part of the rest — a Worker's `fetch` egresses from
+Cloudflare's network and cannot reach the deployer's LAN or loopback, and a browser's `fetch` is
+bound by the same-origin policy, needing CORS consent to read a cross-origin response, with
+Private Network Access gating public→private requests separately. Neither substitutes for the
+check. Inject a resolver when the runtime can resolve names and the endpoint is untrusted:
+
+```js
+await ResolveDynamicQuery(
+  playlist,
+  ctx,
+  params,
+  {
+    // Any resolver shaped like dns.lookup(host, { all: true }).
+    lookup: async host => [{ address: await resolveOverHttps(host), family: 4 }],
+  },
+  null
+);
+```
 
 ## Schema provenance and parity
 
@@ -262,7 +376,7 @@ Validators are generated from `src/schema/*.json` into `src/validate/generated/`
 
 ## Requirements
 
-- Node.js 22+
+- Node.js 22.3+
 - npm for dependency installation
 
 ## Notes
