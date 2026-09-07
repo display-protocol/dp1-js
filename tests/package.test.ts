@@ -2,7 +2,7 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,9 +12,8 @@ const packageJson = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf
   name: string;
   exports?: {
     '.': {
-      types: string;
-      import: string;
-      require: string;
+      import: { types: string; default: string };
+      require: { types: string; default: string };
     };
   };
 };
@@ -47,13 +46,32 @@ function runNode(args: string[], cwd: string) {
   });
 }
 
+// Each condition carries its own `types`. A single `types` above the conditions hands the ESM
+// declaration file to `require` consumers too, and with `"type": "module"` TypeScript reads it as
+// ESM and rejects it from CommonJS (TS1479 under moduleResolution: node16). See #30.
 test('package exports map points to build outputs', () => {
   assert.deepEqual(packageJson.exports?.['.'], {
-    types: './dist/index.d.ts',
-    import: './dist/index.js',
-    require: './dist/index.cjs',
+    import: { types: './dist/index.d.ts', default: './dist/index.js' },
+    require: { types: './dist/index.d.cts', default: './dist/index.cjs' },
   });
 });
+
+// Guards the other half of #30: the map is only correct while the build still emits both
+// declaration flavors. A tsup/format change that drops `.d.cts` would leave `require` consumers
+// pointing at a file that does not exist.
+test('build emits every file the exports map names', () => {
+  ensureBuild();
+  const root = packageJson.exports?.['.'];
+  assert.ok(root);
+  for (const target of [
+    root.import.types,
+    root.import.default,
+    root.require.types,
+    root.require.default,
+  ]) {
+    assert.ok(existsSync(join(repoRoot, target)), `missing build output: ${target}`);
+  }
+}, 60_000);
 
 // Runs a full `npm run build` before importing dist; CI + coverage can exceed the default 5s.
 test('package root imports from ESM and CommonJS consumers', async () => {
