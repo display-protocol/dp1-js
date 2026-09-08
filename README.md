@@ -260,6 +260,8 @@ Validators are generated from `src/schema/*.json` into `src/validate/generated/`
 
 `npm run smoke:workerd` builds the package, installs it into a throwaway Worker, and exercises it under `wrangler dev --local` (needs network access for the wrangler install).
 
+`npm run check:packaging` builds the package and runs `publint --strict` and `attw --pack .` over what would be published, so a broken `exports` map fails here rather than in a consumer's `tsc` (as [#30](https://github.com/display-protocol/dp1-js/issues/30) did). It runs in CI as the `packaging` job, and again in `publish.yml` before the package reaches npm. The package deliberately declares no `sideEffects`: `src/sign/index.ts` registers its verifiers at module scope, so `"sideEffects": false` would let a bundler drop the registrations and leave `VerifyPlaylistSignatures` without a verifier. `publint` suggests the field on every run, so `tests/package.test.ts` pins the omission.
+
 ## Requirements
 
 - Node.js 22+

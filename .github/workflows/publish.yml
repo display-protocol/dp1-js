@@ -67,6 +67,9 @@ jobs:
           fi
       - run: npm run lint
       - run: npm test
+      # Last gate before npm: a `workflow_dispatch` run can publish from a branch that never
+      # went through the `packaging` job on a pull request.
+      - run: npm run check:packaging
       - name: Verify npm authentication
         run: npm whoami
         env:

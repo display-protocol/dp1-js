@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 const packageJson = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8')) as {
   name: string;
+  sideEffects?: unknown;
   exports?: {
     '.': {
       import: { types: string; default: string };
@@ -54,6 +55,27 @@ test('package exports map points to build outputs', () => {
     import: { types: './dist/index.d.ts', default: './dist/index.js' },
     require: { types: './dist/index.d.cts', default: './dist/index.cjs' },
   });
+});
+
+// `src/sign/index.ts` calls `RegisterVerifier` twice at module scope, and `VerifyPlaylistSignatures`
+// reads that registry back by algorithm name. `"sideEffects": false` licenses a bundler to drop
+// those two statements while keeping the exports that depend on them, so a consumer's bundle loses
+// its verifiers with no error until a signature is checked. `publint` suggests the field on every
+// run of `npm run check:packaging`, so the omission is pinned here rather than left to prose. The
+// second assertion pins the reason to this file: if registration ever becomes lazy, or moves to a
+// sibling module, this test is where you find out the field can be reconsidered.
+test('package does not declare itself free of side effects', () => {
+  assert.equal(
+    'sideEffects' in packageJson,
+    false,
+    'the field is deliberately absent — see the comment above'
+  );
+  const sign = readFileSync(join(repoRoot, 'src/sign/index.ts'), 'utf8');
+  assert.match(
+    sign,
+    /^RegisterVerifier\(/m,
+    'module-scope verifier registration is why the field is omitted'
+  );
 });
 
 // Guards the other half of #30: the map is only correct while the build still emits both

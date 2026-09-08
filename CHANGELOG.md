@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented here.
 
+## Unreleased
+
+### Changed (packaging is linted in CI)
+
+- `npm run check:packaging` builds the package and runs [`publint --strict`](https://publint.dev) and [`attw --pack .`](https://arethetypeswrong.github.io) over it, and a `packaging` job in `.github/workflows/lint.yml` runs it on pull requests and on `main`. The `exports` bug fixed in 2.3.2 ([#30](https://github.com/display-protocol/dp1-js/issues/30)) passed lint, typecheck, tests, and the workerd smoke in this repo and only surfaced in a consumer's `tsc`; both tools flag it directly. Confirmed by reverting `exports` to the pre-2.3.2 shape on this branch: `attw` exits 1 with `Import resolved to an ESM type declaration file, but a CommonJS JavaScript file`, and `publint --strict` exits 1 on the same map. `publish.yml` runs it too, after `lint` and `test`, so nothing reaches npm without the check — #30 shipped because no packaging check existed anywhere. The job needs no `workerd`, so it costs one `npm ci` plus about five seconds: both tools shell out to `npm pack`, and each pack fires `prepare` -> `build`.
+- `--strict` promotes publint warnings to errors, which is the level the #30 shape reports at. Suggestions stay advisory, so the job fails on a real packaging defect rather than on style preferences. `attw` needs no `--ignore-rules`: the built package is clean across `node10`, `node16` from both CJS and ESM, and `bundler`.
+- `repository.url` is now the full git URL (`git+https://github.com/display-protocol/dp1-js.git`) that npm and publint expect. This is the only change visible in the published package.
+- No `sideEffects` field, deliberately, though publint suggests one. `src/sign/index.ts` calls `RegisterVerifier` twice at module scope to populate the verifier registry that `VerifyPlaylistSignatures` reads back by algorithm name — a real import-time side effect, and exactly the pattern `"sideEffects": false` lets a bundler drop while keeping the exports that depend on it. A `sideEffects` array could name the file — webpack matches its entries as globs, so `"dist/chunk-*.js"` survives the content hash `tsup` puts on the shared chunk the sign code lands in — but it is a hand-maintained claim about a chunk layout `tsup` does not guarantee, and getting it wrong fails silently at signature verification. Declaring the package side-effect free would trade a `dp1: signature algorithm not implemented: "ed25519"` throw in a consumer's bundle, on the first signature it checks, for a tree-shaking hint, so the suggestion stands unaddressed on purpose and `tests/package.test.ts` pins the omission, since `check:packaging` argues the other way on every run.
+
 ## 2.3.2 — 2026-09-08
 
 ### Fixed (CommonJS TypeScript consumers get CommonJS declarations)
