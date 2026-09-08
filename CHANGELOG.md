@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## Unreleased
+
+### Fixed (CommonJS TypeScript consumers get CommonJS declarations)
+
+- `exports` now carries a `types` inside each condition instead of one above them ([#30](https://github.com/display-protocol/dp1-js/issues/30)). A single top-level `types` handed `dist/index.d.ts` to every consumer, including one resolving under `require`; with `"type": "module"` TypeScript reads that file as an ESM declaration and refuses it from a CommonJS importer — `error TS1479` under `moduleResolution: node16`. The `require` condition now points at `dist/index.d.cts`, which the build has been emitting all along. `publint` and `arethetypeswrong` flagged the old shape and are clean on the new one.
+- Runtime resolution is unchanged: `require('dp1-js')` still lands on `dist/index.cjs` and `import` still lands on `dist/index.js`. Only type resolution moves. The legacy top-level `main` / `module` / `types` fields are untouched, so a resolver that ignores `exports` sees exactly what it saw before.
+- `tests/package.test.ts` pins the new map and asserts that every file it names exists after a build, so a packaging change that drops the `.d.cts` output fails there rather than in a consumer's `tsc`.
+
 ## 2.3.1 — 2026-08-13
 
 ### Fixed (validation runs on runtimes that forbid dynamic code generation)
