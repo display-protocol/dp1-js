@@ -5,7 +5,7 @@
   "license": "MPL-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/display-protocol/dp1-js"
+    "url": "git+https://github.com/display-protocol/dp1-js.git"
   },
   "type": "module",
   "main": "./dist/index.cjs",
@@ -41,6 +41,8 @@
     "test:coverage": "vitest run --coverage --passWithNoTests",
     "smoke:workerd": "node scripts/workerd-smoke.mjs",
     "lint": "eslint .",
+    "precheck:packaging": "npm run build",
+    "check:packaging": "publint --strict && attw --pack .",
     "pretype-check": "npm run generate:validators",
     "type-check": "tsc --noEmit",
     "format": "prettier --write .",
@@ -52,13 +54,15 @@
     "@noble/hashes": "^2.2.0"
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
     "@eslint/js": "^10.0.1",
-    "ajv": "^8.17.1",
-    "ajv-formats": "^3.0.1",
     "@types/node": "^24.7.0",
     "@vitest/coverage-v8": "^4.1.5",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
     "eslint": "^10.3.0",
     "prettier": "^3.8.3",
+    "publint": "^0.3.24",
     "tsup": "^8.5.1",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.0.0",
