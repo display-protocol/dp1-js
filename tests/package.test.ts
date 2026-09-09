@@ -57,26 +57,169 @@ test('package exports map points to build outputs', () => {
   });
 });
 
-// `src/sign/index.ts` calls `RegisterVerifier` twice at module scope, and `VerifyPlaylistSignatures`
-// reads that registry back by algorithm name. `"sideEffects": false` licenses a bundler to drop
-// those two statements while keeping the exports that depend on them, so a consumer's bundle loses
-// its verifiers with no error until a signature is checked. `publint` suggests the field on every
-// run of `npm run check:packaging`, so the omission is pinned here rather than left to prose. The
-// second assertion pins the reason to this file: if registration ever becomes lazy, or moves to a
-// sibling module, this test is where you find out the field can be reconsidered.
-test('package does not declare itself free of side effects', () => {
-  assert.equal(
-    'sideEffects' in packageJson,
-    false,
-    'the field is deliberately absent — see the comment above'
-  );
+// `"sideEffects": false` is what lets a bundler drop the ~853 KB validator chunk for a consumer
+// that only parses or builds documents. The field is only truthful while nothing in `src/` runs at
+// import time: `src/sign/index.ts` used to call `RegisterVerifier` twice at module scope, and a
+// bundler licensed to drop those statements while keeping the exports that read the registry gave
+// the consumer `dp1: signature algorithm not implemented: "ed25519"` on the first signature it
+// checked. Registration is lazy now, so the claim holds — and this test fails if the
+// module-scope form comes back.
+test('package declares itself free of side effects', () => {
+  assert.equal(packageJson.sideEffects, false);
   const sign = readFileSync(join(repoRoot, 'src/sign/index.ts'), 'utf8');
-  assert.match(
+  assert.doesNotMatch(
     sign,
     /^RegisterVerifier\(/m,
-    'module-scope verifier registration is why the field is omitted'
+    'module-scope verifier registration would make "sideEffects": false a false claim'
   );
 });
+
+// The built-in verifiers now register on the first read of the registry rather than at import.
+// Exercised against the built package, from a consumer that registers nothing, because that is the
+// shape the old module-scope call was protecting.
+const LAZY_REGISTRATION = `
+import assert from 'node:assert/strict';
+import { GetVerifier, SupportedAlgorithms } from 'dp1-js';
+
+assert.equal(GetVerifier('ed25519').alg(), 'ed25519');
+assert.equal(GetVerifier('eip191').alg(), 'eip191');
+assert.equal(GetVerifier('ED25519').alg(), 'ed25519');
+assert.deepEqual(SupportedAlgorithms(), ['ed25519', 'eip191']);
+assert.throws(() => GetVerifier('ecdsa-p256'), /not implemented/);
+`;
+
+// Precedence, both orderings. A consumer's verifier wins whether it is registered before the
+// defaults are materialized or after — the same guarantee module-scope registration gave, where
+// every consumer call necessarily landed after the defaults.
+const CONSUMER_PRECEDENCE = `
+import assert from 'node:assert/strict';
+import { GetVerifier, RegisterVerifier, SupportedAlgorithms } from 'dp1-js';
+
+// Registered before the first read: the default must not overwrite it.
+const early = { alg: () => 'ed25519', verifySignature() {} };
+RegisterVerifier(early);
+assert.equal(GetVerifier('ed25519'), early);
+// ...and the defaults for other algorithms still fill in.
+assert.equal(GetVerifier('eip191').alg(), 'eip191');
+
+// Registered after the first read: overwrites the default, as before.
+const late = { alg: () => 'eip191', verifySignature() {} };
+RegisterVerifier(late);
+assert.equal(GetVerifier('eip191'), late);
+
+// A new algorithm joins the registry.
+RegisterVerifier({ alg: () => 'ecdsa-p256', verifySignature() {} });
+assert.equal(GetVerifier('ecdsa-p256').alg(), 'ecdsa-p256');
+assert.deepEqual(SupportedAlgorithms(), ['ecdsa-p256', 'ed25519', 'eip191']);
+`;
+
+test('built-in verifiers register on first use, and a consumer still wins', async () => {
+  ensureBuild();
+  const sandbox = await createConsumerSandbox();
+  try {
+    for (const [name, source] of [
+      ['lazy-registration.mjs', LAZY_REGISTRATION],
+      ['consumer-precedence.mjs', CONSUMER_PRECEDENCE],
+    ] as const) {
+      const script = join(sandbox, name);
+      await writeFile(script, source, 'utf8');
+      const result = runNode([script], sandbox);
+      assert.equal(result.status, 0, `${name}: ${result.stderr}`);
+    }
+  } finally {
+    await rm(sandbox, { recursive: true, force: true });
+  }
+}, 60_000);
+
+// The point of the field, proved rather than asserted. A distinctive literal from the Ajv
+// standalone validators (`scripts/generate-validators.mjs` emits it ~86 times) stands in for the
+// validator chunk: if tree-shaking works, a parse-only consumer's bundle does not contain it.
+const VALIDATOR_MARKER = 'must be equal to one of the allowed values';
+
+test('a parse-only consumer tree-shakes the validator chunk away', async () => {
+  ensureBuild();
+  const { build } = await import('esbuild');
+  const sandbox = await createConsumerSandbox();
+  try {
+    let n = 0;
+    const bundle = async (source: string) => {
+      const entry = join(sandbox, `entry-${n++}.mjs`);
+      await writeFile(entry, source, 'utf8');
+      const result = await build({
+        entryPoints: [entry],
+        bundle: true,
+        format: 'esm',
+        platform: 'node',
+        treeShaking: true,
+        write: false,
+        absWorkingDir: sandbox,
+        logLevel: 'silent',
+      });
+      return result.outputFiles[0].text;
+    };
+
+    // `parsePlaylist` and the schedule helpers, but no builder: `build()` schema-validates, so
+    // every `*Builder` legitimately pulls the validators in and is not a parse-only import.
+    const parseOnly = await bundle(
+      `import { parsePlaylist, computeActiveSet, JcsTransform } from 'dp1-js';\nglobalThis.keep = [parsePlaylist, computeActiveSet, JcsTransform];\n`
+    );
+    const validating = await bundle(
+      `import { ValidatePlaylist } from 'dp1-js';\nglobalThis.keep = [ValidatePlaylist];\n`
+    );
+
+    assert.equal(
+      parseOnly.includes(VALIDATOR_MARKER),
+      false,
+      'parse-only bundle still carries the validators'
+    );
+    assert.equal(
+      validating.includes(VALIDATOR_MARKER),
+      true,
+      'a validating consumer must still get the validators'
+    );
+    // Measured on this change: ~10 KB parse-only against ~835 KB validating. The bounds sit an
+    // order of magnitude clear of both, so ordinary growth does not fail them, but a regression
+    // that re-links the validator chunk does.
+    assert.ok(
+      parseOnly.length < 100_000,
+      `parse-only bundle is ${parseOnly.length} bytes, expected well under 100 KB`
+    );
+    assert.ok(
+      validating.length > 500_000,
+      `validating bundle is ${validating.length} bytes, expected the validators to be present`
+    );
+
+    // The failure #33 withheld the field over, run rather than reasoned about: a signature-verifying
+    // consumer, bundled with tree-shaking on and then executed. Under module-scope registration
+    // this is where the bundle threw `signature algorithm not implemented: "ed25519"`. The other
+    // assertions in this file cannot catch it — they either grep source, or run under plain Node
+    // where no bundler has dropped anything.
+    const verifying = await bundle(`
+import assert from 'node:assert/strict';
+import { generateKeyPairSync } from 'node:crypto';
+import { SignMultiEd25519, VerifyMultiSignature, SupportedAlgorithms } from 'dp1-js';
+
+const { privateKey } = generateKeyPairSync('ed25519');
+const raw = Buffer.from('{"dpVersion":"1.1.0","title":"t","items":[{"source":"https://example.com"}]}');
+const sig = await SignMultiEd25519(raw, privateKey, 'curator', '2025-01-01T00:00:00Z');
+assert.equal(sig.alg, 'ed25519');
+// Nothing registered a verifier: the bundle has to materialize the default on its own.
+assert.doesNotThrow(() => VerifyMultiSignature(raw, sig));
+assert.deepEqual(SupportedAlgorithms(), ['ed25519', 'eip191']);
+`);
+    assert.equal(
+      verifying.includes(VALIDATOR_MARKER),
+      false,
+      'a sign-only consumer should not carry the validators either'
+    );
+    const verifyScript = join(sandbox, 'verify.bundle.mjs');
+    await writeFile(verifyScript, verifying, 'utf8');
+    const ran = runNode([verifyScript], sandbox);
+    assert.equal(ran.status, 0, `bundled verifier failed: ${ran.stderr}`);
+  } finally {
+    await rm(sandbox, { recursive: true, force: true });
+  }
+}, 60_000);
 
 // Guards the other half of #30: the map is only correct while the build still emits both
 // declaration flavors. A tsup/format change that drops `.d.cts` would leave `require` consumers

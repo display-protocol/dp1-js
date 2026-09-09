@@ -37,18 +37,21 @@ type PublicKeyLike = Parameters<typeof createPublicKey>[0];
 type SignatureLike = { alg: string; kid: string; sig: string; payload_hash: string };
 
 const verifiers = new Map<string, Verifier>();
+let defaultsRegistered = false;
 
 export function RegisterVerifier(v: Verifier) {
   verifiers.set(String(v.alg()).toLowerCase(), v);
 }
 
 export function GetVerifier(alg: string) {
+  ensureDefaultVerifiers();
   const v = verifiers.get(String(alg).toLowerCase());
   if (!v) throw new Error(`${ErrUnsupportedAlg.message}: "${alg}"`);
   return v;
 }
 
 export function SupportedAlgorithms() {
+  ensureDefaultVerifiers();
   return [...verifiers.keys()].sort();
 }
 
@@ -218,8 +221,32 @@ class Eip191Verifier {
   }
 }
 
-RegisterVerifier(new Ed25519Verifier());
-RegisterVerifier(new Eip191Verifier());
+/**
+ * Register the built-in `ed25519` and `eip191` verifiers on the first read of the registry.
+ *
+ * These two registrations used to run at module scope, which made merely importing the package a
+ * side effect and so kept `"sideEffects": false` out of `package.json` — without that field a
+ * bundler cannot drop the ~853 KB validator chunk for a consumer that only parses documents.
+ * Registering on demand means the registry is filled by the same call that reads it, so no import
+ * order can observe it empty.
+ *
+ * Precedence is unchanged from module-scope registration: a consumer's `RegisterVerifier` always
+ * wins. Registering after first use overwrites the default, as before; registering *before* first
+ * use is preserved here, because a default never replaces an algorithm already in the map.
+ *
+ * Kept below the two classes, where the module-scope calls were, so a `GetVerifier` reached at
+ * import time through some future circular import would still see them initialized. The flag is
+ * set after the loop, so a constructor that ever starts throwing surfaces its own error on the
+ * next call rather than leaving the registry permanently empty.
+ */
+function ensureDefaultVerifiers() {
+  if (defaultsRegistered) return;
+  for (const v of [new Ed25519Verifier(), new Eip191Verifier()]) {
+    const alg = String(v.alg()).toLowerCase();
+    if (!verifiers.has(alg)) verifiers.set(alg, v);
+  }
+  defaultsRegistered = true;
+}
 
 export function NewEd25519Signer(
   privateKey: PrivateKeyLike | { type?: string } | null | undefined
