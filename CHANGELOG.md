@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## Unreleased
+## 2.4.0 — 2026-09-09
 
 ### Changed (verifier registration is lazy, and the package declares `"sideEffects": false`)
 
