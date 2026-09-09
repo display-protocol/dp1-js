@@ -45,7 +45,7 @@ const ajv = addFormats(
   })
 );
 
-for (const schema of [
+const schemas = [
   playlist,
   playlistGroup,
   refManifest,
@@ -54,7 +54,40 @@ for (const schema of [
   playlistBundle,
   playlistWithExt,
   playlistItemWithExt,
-]) {
+];
+
+/**
+ * Fail the build if a schema starts using `unevaluatedProperties` / `unevaluatedItems`.
+ *
+ * Those are the only keywords that read the `validateNN.evaluated = {...}` metadata Ajv writes at
+ * the top level of the generated module — the one import-time side effect left in the package,
+ * which `"sideEffects": false` in `package.json` now licenses a bundler to drop. Today nothing
+ * reads that metadata, so dropping it is harmless. The moment a schema uses one of these keywords
+ * it stops being harmless, and the failure would be silent: validation goes wrong rather than
+ * throwing. Adding the keyword means dropping the field, or narrowing it to an array that keeps
+ * the generated chunk — decide it here, not after a consumer's bundle mis-validates a document.
+ */
+function assertNoUnevaluatedKeywords(node, schemaId, path = '#') {
+  if (!node || typeof node !== 'object') return;
+  if (Array.isArray(node)) {
+    node.forEach((child, i) => assertNoUnevaluatedKeywords(child, schemaId, `${path}/${i}`));
+    return;
+  }
+  for (const [key, value] of Object.entries(node)) {
+    if (key === 'unevaluatedProperties' || key === 'unevaluatedItems') {
+      throw new Error(
+        `generate-validators: ${schemaId} uses "${key}" at ${path}. Ajv implements it with the ` +
+          `top-level \`validateNN.evaluated\` metadata in the generated module, which ` +
+          `"sideEffects": false lets a bundler drop — see src/validate/generated and the ` +
+          `packaging notes in README.md before allowing this keyword.`
+      );
+    }
+    assertNoUnevaluatedKeywords(value, schemaId, `${path}/${key}`);
+  }
+}
+
+for (const schema of schemas) {
+  assertNoUnevaluatedKeywords(schema, schema.$id ?? '(anonymous schema)');
   ajv.addSchema(schema);
 }
 
