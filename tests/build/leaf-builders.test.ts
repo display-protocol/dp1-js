@@ -23,7 +23,9 @@ import {
 } from '../../src/build/index.js';
 import { ErrValidation } from '../../src/errors.js';
 import {
+  Biography as ValidateBiography,
   DynamicQuery as ValidateDynamicQuery,
+  Link as ValidateLink,
   Playlist as ValidatePlaylist,
 } from '../../src/validate/index.js';
 
@@ -341,4 +343,68 @@ test('Ref-manifest leaf builders cover metadata artist safety and thumbnails', (
     .build();
   assert.equal(controls.safety?.maxCpuPct, 50);
   assert.throws(() => new ArtistBuilder().name('Ada').url('not-a-url').build(), isValidationError);
+});
+
+test('ArtistBuilder carries the 1.1.0 profile and validates each field', () => {
+  const avatar = new ThumbnailBuilder()
+    .uri('https://a.example/reas.jpg')
+    .widthPx(512)
+    .heightPx(512);
+  const artist = new ArtistBuilder()
+    .name('Casey Reas')
+    .id('58')
+    .addresses(['0x457ee5f723c7606c12a7264b52e285906f91eea6'])
+    .addAddress('tz1LBwyJMRkH4tcG19KwYzAW7fLYbjFmWdWy')
+    .avatar(avatar)
+    .addBiography({ text: 'Software artist.', source: 'DAM', sourceUrl: 'https://dam.org/reas' })
+    .addLink({ type: 'website', url: 'https://reas.com' })
+    .links([
+      { type: 'website', url: 'https://reas.com' },
+      { type: 'other', url: 'https://example.social/@reas' },
+    ])
+    .build();
+  assert.deepEqual(artist.addresses, [
+    '0x457ee5f723c7606c12a7264b52e285906f91eea6',
+    'tz1LBwyJMRkH4tcG19KwYzAW7fLYbjFmWdWy',
+  ]);
+  assert.equal(artist.avatar?.uri, 'https://a.example/reas.jpg');
+  assert.equal(artist.biographies?.[0]?.sourceUrl, 'https://dam.org/reas');
+  assert.equal(artist.links?.length, 2);
+  // A producer that never touched a profile field must not emit it at all.
+  assert.deepEqual(Object.keys(new ArtistBuilder().name('N').build()), ['name']);
+  // The deprecated url is still accepted next to links.
+  const both = new ArtistBuilder()
+    .name('N')
+    .url('https://n.example')
+    .addLink({ type: 'website', url: 'https://n.example' })
+    .build();
+  assert.equal(both.url, 'https://n.example');
+
+  // Each rejection below violates exactly one schema constraint.
+  assert.throws(() => new ArtistBuilder().name('N').addresses(['']).build(), isValidationError);
+  assert.throws(
+    () => new ArtistBuilder().name('N').addBiography({ text: '' }).build(),
+    isValidationError
+  );
+  assert.throws(
+    () => new ArtistBuilder().name('N').addLink({ type: 'twitter', url: '@REAS' }).build(),
+    isValidationError
+  );
+  assert.throws(
+    () =>
+      new ArtistBuilder()
+        .name('N')
+        // Cast: the type already forbids this; the schema must too.
+        .addLink({ type: 'mastodon' as 'other', url: 'https://example.social/@n' })
+        .build(),
+    isValidationError
+  );
+  assert.throws(() => new ArtistBuilder().name('N').avatar({ uri: '' }).build(), isValidationError);
+});
+
+test('ValidateBiography and ValidateLink stand alone', () => {
+  ValidateBiography({ text: 'Software artist.' });
+  ValidateLink({ type: 'website', url: 'https://reas.com' });
+  assert.throws(() => ValidateBiography({ source: 'DAM' }), isValidationError);
+  assert.throws(() => ValidateLink({ type: 'website', url: '@REAS' }), isValidationError);
 });

@@ -277,6 +277,42 @@ test('RefManifestBuilder builds validated manifest', () => {
   assert.throws(() => new RefManifestBuilder().locale('EN').build(), isValidationError);
 });
 
+test('RefManifestBuilder declares refVersion 1.1.0 when an artist carries profile fields', () => {
+  const artist = new ArtistBuilder()
+    .name('Ada')
+    .addAddress('0x1111111111111111111111111111111111111111')
+    .addLink({ type: 'website', url: 'https://ada.example' });
+  const manifest = new RefManifestBuilder()
+    .metadata(new MetadataBuilder().title('Work').addArtist(artist))
+    .build();
+  assert.equal(manifest.refVersion, '1.1.0');
+  assert.deepEqual(manifest.metadata?.artists?.[0]?.links, [
+    { type: 'website', url: 'https://ada.example' },
+  ]);
+
+  // Each 1.1.0 field on its own is enough to lift the default.
+  for (const a of [
+    new ArtistBuilder().name('A').avatar(new ThumbnailBuilder().uri('https://x.example/a.png')),
+    new ArtistBuilder().name('A').addBiography({ text: 'Bio' }),
+  ]) {
+    const m = new RefManifestBuilder().metadata(new MetadataBuilder().addArtist(a)).build();
+    assert.equal(m.refVersion, '1.1.0');
+  }
+
+  // A 1.0.0-shaped artist keeps the pre-1.1.0 default, and an explicit version still wins.
+  const plain = new RefManifestBuilder()
+    .metadata(
+      new MetadataBuilder().addArtist(new ArtistBuilder().name('Ada').url('https://ada.example'))
+    )
+    .build();
+  assert.equal(plain.refVersion, '0.1.0');
+  const explicit = new RefManifestBuilder()
+    .refVersion('1.2.0')
+    .metadata(new MetadataBuilder().addArtist(artist))
+    .build();
+  assert.equal(explicit.refVersion, '1.2.0');
+});
+
 test('PlaylistItemBuilder covers optional core fields', () => {
   const item = new PlaylistItemBuilder()
     .id('11111111-1111-4111-8111-111111111111')

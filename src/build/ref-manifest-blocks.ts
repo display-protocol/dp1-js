@@ -1,8 +1,10 @@
 import { resolve } from './helpers.js';
 import type {
   Artist,
+  Biography,
   Controls,
   DisplayControls,
+  Link,
   LocalizedMetadata,
   Metadata,
   SafetyControls,
@@ -59,15 +61,56 @@ export class ArtistBuilder {
     this.a.id = value;
     return this;
   }
+  /**
+   * @deprecated Write `.addLink({ type: 'website', url })` instead. Kept so 1.0.0
+   * producers still build; the value is emitted as the deprecated `url` field.
+   */
   url(value: string) {
     this.a.url = value;
     return this;
   }
+  addresses(values: string[]) {
+    this.a.addresses = [...values];
+    return this;
+  }
+  addAddress(value: string) {
+    if (!this.a.addresses) this.a.addresses = [];
+    this.a.addresses.push(value);
+    return this;
+  }
+  avatar(value: Thumbnail | ThumbnailBuilder) {
+    this.a.avatar = resolve(value);
+    return this;
+  }
+  biographies(values: Biography[]) {
+    this.a.biographies = values.map(v => ({ ...v }));
+    return this;
+  }
+  addBiography(value: Biography) {
+    if (!this.a.biographies) this.a.biographies = [];
+    this.a.biographies.push({ ...value });
+    return this;
+  }
+  links(values: Link[]) {
+    this.a.links = values.map(v => ({ ...v }));
+    return this;
+  }
+  addLink(value: Link) {
+    if (!this.a.links) this.a.links = [];
+    this.a.links.push({ ...value });
+    return this;
+  }
   build(): Artist {
+    // Spread only what was set, so an untouched optional field stays absent rather than
+    // serialising as `undefined` (which JCS would drop but the validator would still see).
     const out: Artist = {
       name: String(this.a.name ?? ''),
       ...(this.a.id === undefined ? {} : { id: String(this.a.id) }),
       ...(this.a.url === undefined ? {} : { url: String(this.a.url) }),
+      ...(this.a.addresses === undefined ? {} : { addresses: this.a.addresses }),
+      ...(this.a.avatar === undefined ? {} : { avatar: this.a.avatar }),
+      ...(this.a.biographies === undefined ? {} : { biographies: this.a.biographies }),
+      ...(this.a.links === undefined ? {} : { links: this.a.links }),
     };
     ValidateArtist(out);
     return structuredClone(out);
