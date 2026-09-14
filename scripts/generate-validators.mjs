@@ -165,6 +165,8 @@ const validators = {
 
   thumbnail: `${refManifest.$id}#/$defs/Thumbnail`,
   artist: `${refManifest.$id}#/$defs/Artist`,
+  biography: `${refManifest.$id}#/$defs/Biography`,
+  link: `${refManifest.$id}#/$defs/Link`,
   metadata: `${refManifest.$id}#/$defs/Metadata`,
   localizedMetadata: `${refManifest.$id}#/$defs/LocalizedMetadata`,
   controls: `${refManifest.$id}#/$defs/Controls`,

@@ -204,10 +204,59 @@ export interface Thumbnail {
   sha256?: string;
 }
 
+/** `links[].type` as the schema enumerates it; anything else is rejected — use `'other'`. */
+export type LinkType = 'website' | 'twitter' | 'instagram' | 'other';
+
+/** External profile link. `url` is always a full URL, never a bare handle. */
+export interface Link {
+  type: LinkType;
+  url: string;
+}
+
+/** One biographical text with optional attribution. `text` is plain text, no markup. */
+export interface Biography {
+  text: string;
+  source?: string;
+  sourceUrl?: string;
+}
+
+/**
+ * A creator and, from refVersion 1.1.0, a profile snapshot taken when the manifest was
+ * authored (spec §4.1).
+ *
+ * Identity: only `addresses` may be used to recognize the same artist across producers.
+ * `id` is producer-scoped (two producers label one artist with different ids) and `name`
+ * is display text. `addresses` is a signed claim of the producer, not a fact — a wallet
+ * can be shared by a collective or a collaborative mint — so a consumer must not merge
+ * two artist records merely because their address lists intersect.
+ *
+ * `avatar`, `biographies` and `links` are the offline fallback, not the source of truth;
+ * a consumer may overlay fresher registry data keyed by `addresses`.
+ */
 export interface Artist {
   name: string;
+  /** Opaque, producer-scoped label. Not an identity. */
   id?: string;
+  /**
+   * The refVersion 1.0.0 single profile URL.
+   *
+   * @deprecated Superseded by `links` (write an entry of type `'website'`). Still valid
+   * on the wire; a producer that emits both must keep `url` equal to that entry.
+   * Consumers read `links` first and fall back to `url` only when `links` is absent or
+   * empty.
+   */
   url?: string;
+  /**
+   * Raw wallet addresses (EVM `0x…`, Tezos `tz1…tz4`). Contract addresses (Tezos
+   * `KT1…`, EVM collection contracts) name a collection, not a person, and must not be
+   * listed — they belong in `provenance.contract`.
+   */
+  addresses?: string[];
+  /** Portrait or profile image; same shape as a thumbnail. */
+  avatar?: Thumbnail;
+  /** Ordered by the producer's preference; when only one fits, show the first. */
+  biographies?: Biography[];
+  links?: Link[];
 }
 
 export interface Metadata {

@@ -167,6 +167,8 @@ export const ReproEngineVersion = (data: Buffer | string | unknown) =>
 
 export const Thumbnail = (data: Buffer | string | unknown) => validate(validators.thumbnail, data);
 export const Artist = (data: Buffer | string | unknown) => validate(validators.artist, data);
+export const Biography = (data: Buffer | string | unknown) => validate(validators.biography, data);
+export const Link = (data: Buffer | string | unknown) => validate(validators.link, data);
 export const Metadata = (data: Buffer | string | unknown) => validate(validators.metadata, data);
 /** Localized text overrides under `i18n` (title / description / creditLine only). */
 export const LocalizedMetadata = (data: Buffer | string | unknown) =>

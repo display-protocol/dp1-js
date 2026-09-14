@@ -72,6 +72,60 @@ test('ParseAndValidateRefManifest', () => {
   );
 });
 
+test('ParseAndValidateRefManifest_artistProfile', () => {
+  const withArtist = (a: unknown) =>
+    Buffer.from(
+      JSON.stringify({
+        refVersion: '1.1.0',
+        id: 'r',
+        created: '2025-01-01T00:00:00Z',
+        locale: 'en',
+        metadata: { artists: [a] },
+      })
+    );
+  // The full 1.1.0 profile as a producer should emit it: no deprecated url,
+  // full URLs in links, w/h present on the avatar.
+  const full = withArtist({
+    name: 'Casey Reas',
+    id: '58',
+    addresses: [
+      '0x457ee5f723c7606c12a7264b52e285906f91eea6',
+      'tz1LBwyJMRkH4tcG19KwYzAW7fLYbjFmWdWy',
+    ],
+    avatar: { uri: 'https://a.example/reas.jpg', w: 512, h: 512 },
+    biographies: [
+      { text: 'Software artist.', source: 'DAM', sourceUrl: 'https://dam.org/reas' },
+      { text: 'Co-founder of Processing.' },
+    ],
+    links: [
+      { type: 'website', url: 'https://reas.com' },
+      { type: 'other', url: 'https://example.social/@reas' },
+    ],
+  });
+  assert.equal(ParseAndValidateRefManifest(full).refVersion, '1.1.0');
+  // A 1.0.0 artist — name/id/url only — stays valid: the bump is additive and
+  // url, though deprecated, is still accepted.
+  ParseAndValidateRefManifest(withArtist({ name: 'A', id: '', url: 'https://a.example' }));
+
+  // Each rejection violates exactly one schema constraint, so it stops
+  // failing only when that constraint drops out of the schema.
+  for (const bad of [
+    { name: 'A', addresses: [''] },
+    { name: 'A', biographies: [{ source: 'DAM' }] },
+    { name: 'A', biographies: [{ text: '' }] },
+    { name: 'A', links: [{ type: 'twitter' }] },
+    { name: 'A', links: [{ type: 'twitter', url: '@REAS' }] },
+    { name: 'A', links: [{ type: 'mastodon', url: 'https://example.social/@a' }] },
+    { name: 'A', avatar: { w: 512, h: 512 } },
+  ]) {
+    assert.throws(
+      () => ParseAndValidateRefManifest(withArtist(bad)),
+      isCode(ErrorCode.RefManifestInvalid),
+      JSON.stringify(bad)
+    );
+  }
+});
+
 test('ParseAndValidateChannel', () => {
   assert.throws(() => ParseAndValidateChannel(Buffer.from('{}')), isCode(ErrorCode.ChannelInvalid));
 });

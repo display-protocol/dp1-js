@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here.
 
+## Unreleased
+
+### Added (artist profile on the Ref Manifest — refVersion 1.1.0)
+
+- `src/schema/core/ref-manifest.json` is synced to upstream `display-protocol/dp1` after [#51](https://github.com/display-protocol/dp1/pull/51): `metadata.artists[]` entries gain `addresses` (raw wallet addresses, each non-empty), `avatar` (a `Thumbnail`), `biographies` (`{ text, source?, sourceUrl? }`, plain text) and `links` (`{ type: 'website' | 'twitter' | 'instagram' | 'other', url }`, full URLs only). `name` stays the only required field; every 1.0.0 manifest still validates.
+- `Artist` gains the four fields; new `Biography`, `Link` and `LinkType` types are exported. `ArtistBuilder` gains `.addresses()` / `.addAddress()`, `.avatar(Thumbnail | ThumbnailBuilder)`, `.biographies()` / `.addBiography()` and `.links()` / `.addLink()`. `ValidateBiography` and `ValidateLink` join the `Validate*` helpers.
+- Identity contract, as the spec puts it (§4.1): `addresses` is the only field a consumer may use to recognize one artist across producers; `id` is producer-scoped. It is a signed claim of the producer, not a fact — a wallet can be shared — so two artist records whose address lists intersect are not thereby one artist. Contract addresses (Tezos `KT1…`, EVM collection contracts) name a collection and must not be listed.
+
+### Deprecated
+
+- `Artist.url` and `ArtistBuilder.url()`: superseded by a `links` entry of type `'website'`. Still accepted on the wire and by the builder. Per the spec (§4.1) — the SDK checks neither — a producer that emits both keeps them equal, and consumers read `links` first, falling back to `url` only when `links` is absent or empty.
+
 ## 2.4.0 — 2026-09-09
 
 ### Changed (verifier registration is lazy, and the package declares `"sideEffects": false`)
