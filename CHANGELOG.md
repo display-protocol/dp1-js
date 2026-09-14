@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## Unreleased
+## 2.4.1 — 2026-09-14
 
 ### Added (artist profile on the Ref Manifest — refVersion 1.1.0)
 
