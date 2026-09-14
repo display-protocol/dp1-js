@@ -64,8 +64,13 @@ export class RefManifestBuilder {
     if (this.doc.id === undefined) this.doc.id = generateId();
     if (this.doc.created === undefined) this.doc.created = nowIso();
 
+    // An unset version follows the fields the document carries: artist profile fields exist
+    // only from refVersion 1.1.0, so the default follows suit. An explicit `.refVersion()`
+    // still wins; the SDK validates shape only and does not police the pairing.
+    const defaultVersion = hasArtistProfile(this.doc.metadata) ? '1.1.0' : '0.1.0';
+
     const out: RefManifest = {
-      refVersion: String(this.doc.refVersion ?? '0.1.0') as RefManifest['refVersion'],
+      refVersion: String(this.doc.refVersion ?? defaultVersion) as RefManifest['refVersion'],
       id: this.doc.id,
       created: this.doc.created,
       locale: String(this.doc.locale ?? 'en'),
@@ -76,4 +81,15 @@ export class RefManifestBuilder {
     ValidateRefManifest(out);
     return structuredClone(out);
   }
+}
+
+/** True when any artist carries a refVersion 1.1.0 profile field (spec §4.1). */
+function hasArtistProfile(metadata: Metadata | undefined): boolean {
+  return (metadata?.artists ?? []).some(
+    a =>
+      a.addresses !== undefined ||
+      a.avatar !== undefined ||
+      a.biographies !== undefined ||
+      a.links !== undefined
+  );
 }

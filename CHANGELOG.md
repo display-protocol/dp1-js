@@ -8,6 +8,7 @@ All notable changes to this project are documented here.
 
 - `src/schema/core/ref-manifest.json` is synced to upstream `display-protocol/dp1` after [#51](https://github.com/display-protocol/dp1/pull/51): `metadata.artists[]` entries gain `addresses` (raw wallet addresses, each non-empty), `avatar` (a `Thumbnail`), `biographies` (`{ text, source?, sourceUrl? }`, plain text) and `links` (`{ type: 'website' | 'twitter' | 'instagram' | 'other', url }`, full URLs only). `name` stays the only required field; every 1.0.0 manifest still validates.
 - `Artist` gains the four fields; new `Biography`, `Link` and `LinkType` types are exported. `ArtistBuilder` gains `.addresses()` / `.addAddress()`, `.avatar(Thumbnail | ThumbnailBuilder)`, `.biographies()` / `.addBiography()` and `.links()` / `.addLink()`. `ValidateBiography` and `ValidateLink` join the `Validate*` helpers.
+- `RefManifestBuilder.build()` defaults `refVersion` to `1.1.0` when any artist carries one of the four profile fields, since those fields exist only from that version; a manifest without them keeps the `0.1.0` default, and an explicit `.refVersion()` still wins.
 - Identity contract, as the spec puts it (§4.1): `addresses` is the only field a consumer may use to recognize one artist across producers; `id` is producer-scoped. It is a signed claim of the producer, not a fact — a wallet can be shared — so two artist records whose address lists intersect are not thereby one artist. Contract addresses (Tezos `KT1…`, EVM collection contracts) name a collection and must not be listed.
 
 ### Deprecated
