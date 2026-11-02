@@ -1,5 +1,12 @@
 import { generateId, nowIso, resolve } from './helpers.js';
-import type { Controls, LocalizedMetadataOverride, Metadata, RefManifest } from './types.js';
+import type {
+  Controls,
+  Entity,
+  Link,
+  LocalizedMetadataOverride,
+  Metadata,
+  RefManifest,
+} from './types.js';
 import type {
   ControlsBuilder,
   LocalizedMetadataBuilder,
@@ -65,9 +72,15 @@ export class RefManifestBuilder {
     if (this.doc.created === undefined) this.doc.created = nowIso();
 
     // An unset version follows the fields the document carries: artist profile fields exist
-    // only from refVersion 1.1.0, so the default follows suit. An explicit `.refVersion()`
-    // still wins; the SDK validates shape only and does not police the pairing.
-    const defaultVersion = hasArtistProfile(this.doc.metadata) ? '1.1.0' : '0.1.0';
+    // only from refVersion 1.1.0, and medium / permissions / imageRendering only from 1.2.0
+    // (spec §4.1), so the default follows suit — highest first, since a 1.2.0 feature implies
+    // the 1.1.0 ones are also fine to carry. An explicit `.refVersion()` still wins; the SDK
+    // validates shape only and does not police the pairing.
+    const defaultVersion = has12Features(this.doc)
+      ? '1.2.0'
+      : hasArtistProfile(this.doc.metadata)
+        ? '1.1.0'
+        : '0.1.0';
 
     const out: RefManifest = {
       refVersion: String(this.doc.refVersion ?? defaultVersion) as RefManifest['refVersion'],
@@ -91,5 +104,50 @@ function hasArtistProfile(metadata: Metadata | undefined): boolean {
       a.avatar !== undefined ||
       a.biographies !== undefined ||
       a.links !== undefined
+  );
+}
+
+/** `Link.type` values added at refVersion 1.2.0 alongside the Entity consolidation
+ * (spec §4.2, §12). */
+const LINK_TYPES_1_2_0 = new Set<Link['type']>([
+  'profile',
+  'publication',
+  'article',
+  'event',
+  'news',
+]);
+
+/** True when a `Link` carries a refVersion 1.2.0 addition: one of the new `type`
+ * values, or `title` / `date` / `thumbnail` / `authors` (spec §4.2). */
+function hasLink12Features(link: Link): boolean {
+  return (
+    LINK_TYPES_1_2_0.has(link.type) ||
+    link.title !== undefined ||
+    link.date !== undefined ||
+    link.thumbnail !== undefined ||
+    link.authors !== undefined
+  );
+}
+
+/** True when an artist `Entity` carries a refVersion 1.2.0 field: `key`, `role`,
+ * `location`, or a `links` entry with a 1.2.0 addition (spec §4.2). */
+function hasEntity12Features(entity: Entity): boolean {
+  return (
+    entity.key !== undefined ||
+    entity.role !== undefined ||
+    entity.location !== undefined ||
+    (entity.links ?? []).some(hasLink12Features)
+  );
+}
+
+/** True when the document carries a refVersion 1.2.0 field (spec §4.1, §4.2):
+ * `metadata.medium`, `controls.permissions`, `controls.display.imageRendering`, or an
+ * artist entity/link carrying a 1.2.0 Entity-consolidation addition. */
+function has12Features(doc: Partial<RefManifest>): boolean {
+  return (
+    doc.metadata?.medium !== undefined ||
+    doc.controls?.permissions !== undefined ||
+    doc.controls?.display?.imageRendering !== undefined ||
+    (doc.metadata?.artists ?? []).some(hasEntity12Features)
   );
 }

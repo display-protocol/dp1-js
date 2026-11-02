@@ -1,20 +1,22 @@
 import { resolve } from './helpers.js';
 import type {
-  Artist,
-  Biography,
   Controls,
   DisplayControls,
-  Link,
-  LocalizedMetadata,
+  Medium,
+  MediumType,
   Metadata,
+  LocalizedMetadata,
+  Permission,
   SafetyControls,
   Thumbnail,
 } from './types.js';
 import type { DisplayControlsBuilder } from './display.js';
+import { EntityBuilder } from './entity.js';
+import type { Artist } from './types.js';
 import {
-  Artist as ValidateArtist,
   Controls as ValidateControls,
   LocalizedMetadata as ValidateLocalizedMetadata,
+  Medium as ValidateMedium,
   Metadata as ValidateMetadata,
   SafetyControls as ValidateSafetyControls,
   Thumbnail as ValidateThumbnail,
@@ -51,69 +53,37 @@ export class ThumbnailBuilder {
   }
 }
 
-export class ArtistBuilder {
-  private a: Partial<Artist> = {};
-  name(value: string) {
-    this.a.name = value;
+/**
+ * Builds an `Artist` — an alias of `EntityBuilder`, since `Artist` is now the shared
+ * `Entity` on the wire (dp1 registry 1.0.9 Entity consolidation; the core schema's own
+ * `Artist` is a `$ref` to `Entity`). Kept under this name so existing call sites and
+ * `metadata.artists[]` usage read naturally; `ArtistBuilder` and `EntityBuilder` build
+ * byte-identical output and validate against the same schema.
+ */
+export const ArtistBuilder = EntityBuilder;
+export type ArtistBuilder = EntityBuilder;
+
+/** What the work is made of (spec §4.1, refVersion 1.2.0): a catalog-filterable `type`
+ * plus the display `details` lines shown under the title. */
+export class MediumBuilder {
+  private m: Medium = {};
+  type(value: MediumType) {
+    this.m.type = value;
     return this;
   }
-  id(value: string) {
-    this.a.id = value;
+  details(values: string[]) {
+    this.m.details = [...values];
     return this;
   }
-  /**
-   * @deprecated Write `.addLink({ type: 'website', url })` instead. Kept so 1.0.0
-   * producers still build; the value is emitted as the deprecated `url` field.
-   */
-  url(value: string) {
-    this.a.url = value;
+  addDetail(value: string) {
+    if (!this.m.details) this.m.details = [];
+    this.m.details.push(value);
     return this;
   }
-  addresses(values: string[]) {
-    this.a.addresses = [...values];
-    return this;
-  }
-  addAddress(value: string) {
-    if (!this.a.addresses) this.a.addresses = [];
-    this.a.addresses.push(value);
-    return this;
-  }
-  avatar(value: Thumbnail | ThumbnailBuilder) {
-    this.a.avatar = resolve(value);
-    return this;
-  }
-  biographies(values: Biography[]) {
-    this.a.biographies = values.map(v => ({ ...v }));
-    return this;
-  }
-  addBiography(value: Biography) {
-    if (!this.a.biographies) this.a.biographies = [];
-    this.a.biographies.push({ ...value });
-    return this;
-  }
-  links(values: Link[]) {
-    this.a.links = values.map(v => ({ ...v }));
-    return this;
-  }
-  addLink(value: Link) {
-    if (!this.a.links) this.a.links = [];
-    this.a.links.push({ ...value });
-    return this;
-  }
-  build(): Artist {
-    // Spread only what was set, so an untouched optional field stays absent rather than
-    // serialising as `undefined` (which JCS would drop but the validator would still see).
-    const out: Artist = {
-      name: String(this.a.name ?? ''),
-      ...(this.a.id === undefined ? {} : { id: String(this.a.id) }),
-      ...(this.a.url === undefined ? {} : { url: String(this.a.url) }),
-      ...(this.a.addresses === undefined ? {} : { addresses: this.a.addresses }),
-      ...(this.a.avatar === undefined ? {} : { avatar: this.a.avatar }),
-      ...(this.a.biographies === undefined ? {} : { biographies: this.a.biographies }),
-      ...(this.a.links === undefined ? {} : { links: this.a.links }),
-    };
-    ValidateArtist(out);
-    return structuredClone(out);
+  build(): Medium {
+    const out: Medium = structuredClone(this.m);
+    ValidateMedium(out);
+    return out;
   }
 }
 
@@ -129,6 +99,10 @@ export class MetadataBuilder {
   }
   description(value: string) {
     this.m.description = value;
+    return this;
+  }
+  medium(value: Medium | MediumBuilder) {
+    this.m.medium = resolve(value);
     return this;
   }
   tags(values: string[]) {
@@ -221,6 +195,18 @@ export class ControlsBuilder {
 
   safety(value: SafetyControls | SafetyControlsBuilder) {
     this.c.safety = resolve(value);
+    return this;
+  }
+
+  /** Device capabilities the work needs to run as intended (`'camera'`, `'microphone'`). */
+  permissions(values: Permission[]) {
+    this.c.permissions = [...values];
+    return this;
+  }
+
+  addPermission(value: Permission) {
+    if (!this.c.permissions) this.c.permissions = [];
+    this.c.permissions.push(value);
     return this;
   }
 

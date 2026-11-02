@@ -33,6 +33,17 @@ const playlistsExt = readSchema('extensions/playlists/schema.json');
 const playlistBundle = readSchema('extensions/playlists/bundles/playlist-core-v1.1.0.json');
 const playlistWithExt = readSchema('extensions/playlists/playlist_with_extension.json');
 const playlistItemWithExt = readSchema('extensions/playlists/playlist_item_with_extension.json');
+const contentRatingExt = readSchema('extensions/content-rating/schema.json');
+const playlistWithCrExt = readSchema('extensions/content-rating/playlist_with_extension.json');
+const playlistItemWithCrExt = readSchema(
+  'extensions/content-rating/playlist_item_with_extension.json'
+);
+const playlistWithPlaylistsAndCrExt = readSchema(
+  'extensions/content-rating/playlist_with_playlists_extension.json'
+);
+const playlistItemWithPlaylistsAndCrExt = readSchema(
+  'extensions/content-rating/playlist_item_with_playlists_extension.json'
+);
 
 // `code.source` is what lets standalone mode emit source; `code.formats` points the
 // generated module at the format implementations it imports instead of an Ajv instance.
@@ -54,6 +65,11 @@ const schemas = [
   playlistBundle,
   playlistWithExt,
   playlistItemWithExt,
+  contentRatingExt,
+  playlistWithCrExt,
+  playlistItemWithCrExt,
+  playlistWithPlaylistsAndCrExt,
+  playlistItemWithPlaylistsAndCrExt,
 ];
 
 /**
@@ -117,19 +133,42 @@ function addUnsignedSchema(base) {
 }
 
 /**
- * Composed playlist+extension schema requires signatures via the bundle $ref.
- * Clone the bundle without signature anyOf, then point a composed schema at it.
+ * A composed schema requires signatures through whichever document schema it `$ref`s, so the
+ * unsigned variant is the same composition with that one reference swapped for its own
+ * `-unsigned` clone. `rewrite` maps each `$ref` in `allOf`: returning a new id replaces it,
+ * returning the id unchanged leaves the branch alone (the extension fragments carry no
+ * signature rules, so they are shared with the signed variant rather than cloned).
  */
-function addUnsignedPlaylistWithExtensionSchema() {
-  const composedId = unsignedSchemaId(playlistWithExt.$id);
+function addUnsignedComposedSchema(composed, rewrite) {
+  const composedId = unsignedSchemaId(composed.$id);
   if (ajv.getSchema(composedId)) return composedId;
 
-  const bundleId = addUnsignedSchema(playlistBundle);
-  const unsignedComposed = structuredClone(playlistWithExt);
+  const unsignedComposed = structuredClone(composed);
   unsignedComposed.$id = composedId;
-  unsignedComposed.allOf = [{ $ref: bundleId }, { $ref: playlistsExt.$id }];
+  unsignedComposed.allOf = composed.allOf.map(branch => ({ $ref: rewrite(branch.$ref) }));
   ajv.addSchema(unsignedComposed);
   return composedId;
+}
+
+/** Playlists extension: core bundle + extension fragment. */
+function addUnsignedPlaylistWithExtensionSchema() {
+  return addUnsignedComposedSchema(playlistWithExt, ref =>
+    ref === playlistBundle.$id ? addUnsignedSchema(playlistBundle) : ref
+  );
+}
+
+/** Content rating over core: canonical core playlist + content-rating fragment. */
+function addUnsignedPlaylistWithContentRatingSchema() {
+  return addUnsignedComposedSchema(playlistWithCrExt, ref =>
+    ref === playlist.$id ? addUnsignedSchema(playlist) : ref
+  );
+}
+
+/** Both draft extensions: the playlists composed schema + content-rating fragment. */
+function addUnsignedPlaylistWithPlaylistsAndContentRatingSchema() {
+  return addUnsignedComposedSchema(playlistWithPlaylistsAndCrExt, ref =>
+    ref === playlistWithExt.$id ? addUnsignedPlaylistWithExtensionSchema() : ref
+  );
 }
 
 /**
@@ -149,6 +188,14 @@ const validators = {
   refManifest: refManifest.$id,
   playlistsExt: playlistsExt.$id,
 
+  contentRatingExt: contentRatingExt.$id,
+  playlistWithCrExt: playlistWithCrExt.$id,
+  playlistWithCrExtUnsigned: addUnsignedPlaylistWithContentRatingSchema(),
+  playlistItemWithCrExt: playlistItemWithCrExt.$id,
+  playlistWithPlaylistsAndCrExt: playlistWithPlaylistsAndCrExt.$id,
+  playlistWithPlaylistsAndCrExtUnsigned: addUnsignedPlaylistWithPlaylistsAndContentRatingSchema(),
+  playlistItemWithPlaylistsAndCrExt: playlistItemWithPlaylistsAndCrExt.$id,
+
   playlistItem: `${playlist.$id}#/$defs/PlaylistItem`,
   displayPrefs: `${playlist.$id}#/$defs/DisplayPrefs`,
   reproBlock: `${playlist.$id}#/$defs/ReproBlock`,
@@ -159,7 +206,10 @@ const validators = {
   reproEngineVersion: `${playlist.$id}#/$defs/ReproBlock/properties/engineVersion`,
 
   note: `${playlistsExt.$id}#/$defs/Note`,
-  entity: `${playlistsExt.$id}#/$defs/Entity`,
+  // The playlists and channels extensions both `$ref` the core Ref Manifest's Entity rather
+  // than keeping their own copy (dp1 registry 1.0.9), so there is one Entity validator and the
+  // two extensions cannot drift from `metadata.artists[]`.
+  entity: `${refManifest.$id}#/$defs/Entity`,
   dynamicQuery: `${playlistsExt.$id}#/$defs/DynamicQuery`,
   responseMapping: `${playlistsExt.$id}#/$defs/ResponseMapping`,
 
@@ -168,6 +218,7 @@ const validators = {
   biography: `${refManifest.$id}#/$defs/Biography`,
   link: `${refManifest.$id}#/$defs/Link`,
   metadata: `${refManifest.$id}#/$defs/Metadata`,
+  medium: `${refManifest.$id}#/$defs/Metadata/properties/medium`,
   localizedMetadata: `${refManifest.$id}#/$defs/LocalizedMetadata`,
   controls: `${refManifest.$id}#/$defs/Controls`,
   displayControls: `${refManifest.$id}#/$defs/DisplayControls`,

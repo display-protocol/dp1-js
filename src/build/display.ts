@@ -3,6 +3,7 @@ import type {
   DisplayControls,
   DisplayPrefs,
   DisplayScaling,
+  ImageRendering,
   InteractionPrefs,
   Margin,
   MouseInteraction,
@@ -97,6 +98,16 @@ export class DisplayPrefsBuilder {
     return this;
   }
 
+  /**
+   * How raster images are resampled when scaled. `'pixelated'` keeps hard pixel edges
+   * (nearest-neighbor), for pixel art and bitmaps; `'auto'` lets the player smooth.
+   * Independent of `.scaling()`, which decides how the artwork fits.
+   */
+  imageRendering(value: ImageRendering) {
+    this.display.imageRendering = value;
+    return this;
+  }
+
   interaction(value: InteractionPrefs | InteractionBuilder) {
     this.display.interaction = resolve(value);
     return this;
@@ -115,6 +126,9 @@ export class DisplayPrefsBuilder {
       ...(this.display.background === undefined ? {} : { background: this.display.background }),
       ...(this.display.autoplay === undefined ? {} : { autoplay: this.display.autoplay }),
       ...(this.display.loop === undefined ? {} : { loop: this.display.loop }),
+      ...(this.display.imageRendering === undefined
+        ? {}
+        : { imageRendering: this.display.imageRendering }),
       ...(this.display.interaction === undefined
         ? {}
         : { interaction: normalizeInteraction(this.display.interaction) }),
@@ -155,6 +169,11 @@ export class DisplayControlsBuilder {
     return this;
   }
 
+  imageRendering(value: ImageRendering) {
+    this.display.imageRendering = value;
+    return this;
+  }
+
   interaction(value: InteractionPrefs | InteractionBuilder) {
     this.display.interaction = resolve(value);
     return this;
@@ -167,6 +186,9 @@ export class DisplayControlsBuilder {
       ...(this.display.background === undefined ? {} : { background: this.display.background }),
       ...(this.display.autoplay === undefined ? {} : { autoplay: this.display.autoplay }),
       ...(this.display.loop === undefined ? {} : { loop: this.display.loop }),
+      ...(this.display.imageRendering === undefined
+        ? {}
+        : { imageRendering: this.display.imageRendering }),
       ...(this.display.interaction === undefined
         ? {}
         : { interaction: normalizeInteraction(this.display.interaction) }),

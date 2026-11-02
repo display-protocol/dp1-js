@@ -1,7 +1,7 @@
 import { lookup as dnsLookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { Buffer } from 'node:buffer';
-import { PlaylistItemWithPlaylistsExtension } from '../validate/index.js';
+import { PlaylistItemWithPlaylistsAndContentRatingExtensions } from '../validate/index.js';
 
 export {
   parseDisplayAt,
@@ -344,7 +344,11 @@ function playlistItemsFromDynamicQueryBody(body: Buffer, dq: DynamicQueryLike) {
   for (const raw of rawItems) {
     const itemJSON = applyItemMap(raw, rm.ItemMap || rm.itemMap || {});
     try {
-      PlaylistItemWithPlaylistsExtension(itemJSON);
+      // The combined playlists + content-rating validator, so a dynamic item carrying a
+      // malformed contentRating / contentReasons is rejected here rather than passing
+      // through unrated (dp1-go v0.6.2 parity: "Dynamic-query items now use the combined
+      // playlists + content-rating validator").
+      PlaylistItemWithPlaylistsAndContentRatingExtensions(itemJSON);
       out.push(JSON.parse(Buffer.from(itemJSON).toString('utf8')));
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
