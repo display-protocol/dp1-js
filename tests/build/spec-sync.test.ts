@@ -295,6 +295,83 @@ test('RefManifestBuilder defaults refVersion to 1.2.0 when medium/permissions/im
   assert.equal(plain.refVersion, '0.1.0');
 });
 
+test('RefManifestBuilder defaults refVersion to 1.2.0 for artist Entity/Link additions', () => {
+  const withKey = new RefManifestBuilder()
+    .locale('en')
+    .metadata(
+      new MetadataBuilder().title('T').addArtist(new EntityBuilder().name('A').key('did:key:1'))
+    )
+    .build();
+  assert.equal(withKey.refVersion, '1.2.0');
+
+  const withRole = new RefManifestBuilder()
+    .locale('en')
+    .metadata(
+      new MetadataBuilder().title('T').addArtist(new EntityBuilder().name('A').role('curator'))
+    )
+    .build();
+  assert.equal(withRole.refVersion, '1.2.0');
+
+  const withLocation = new RefManifestBuilder()
+    .locale('en')
+    .metadata(
+      new MetadataBuilder().title('T').addArtist(new EntityBuilder().name('A').location('Taipei'))
+    )
+    .build();
+  assert.equal(withLocation.refVersion, '1.2.0');
+
+  const withArticleLink = new RefManifestBuilder()
+    .locale('en')
+    .metadata(
+      new MetadataBuilder()
+        .title('T')
+        .addArtist(
+          new EntityBuilder()
+            .name('A')
+            .addLink({ type: 'article', url: 'https://example.com/a' })
+        )
+    )
+    .build();
+  assert.equal(withArticleLink.refVersion, '1.2.0');
+
+  const withLinkTitle = new RefManifestBuilder()
+    .locale('en')
+    .metadata(
+      new MetadataBuilder()
+        .title('T')
+        .addArtist(
+          new EntityBuilder()
+            .name('A')
+            .addLink({ type: 'website', url: 'https://example.com', title: 'Site' })
+        )
+    )
+    .build();
+  assert.equal(withLinkTitle.refVersion, '1.2.0');
+
+  // An unrelated 1.1.0-only link (old type, no new fields) still lifts to 1.1.0, not 1.2.0.
+  const withPlainLink = new RefManifestBuilder()
+    .locale('en')
+    .metadata(
+      new MetadataBuilder()
+        .title('T')
+        .addArtist(
+          new EntityBuilder().name('A').addLink({ type: 'website', url: 'https://example.com' })
+        )
+    )
+    .build();
+  assert.equal(withPlainLink.refVersion, '1.1.0');
+
+  // Explicit .refVersion() still wins over feature detection.
+  const explicit = new RefManifestBuilder()
+    .locale('en')
+    .refVersion('1.1.0')
+    .metadata(
+      new MetadataBuilder().title('T').addArtist(new EntityBuilder().name('A').role('curator'))
+    )
+    .build();
+  assert.equal(explicit.refVersion, '1.1.0');
+});
+
 test('DisplayForItem resolves imageRendering through the usual precedence order', () => {
   // ref (manifest) sets it, nothing above overrides -> ref wins.
   const [fromRef] = DisplayForItem(

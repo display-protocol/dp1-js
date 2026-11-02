@@ -1,5 +1,12 @@
 import { generateId, nowIso, resolve } from './helpers.js';
-import type { Controls, LocalizedMetadataOverride, Metadata, RefManifest } from './types.js';
+import type {
+  Controls,
+  Entity,
+  Link,
+  LocalizedMetadataOverride,
+  Metadata,
+  RefManifest,
+} from './types.js';
 import type {
   ControlsBuilder,
   LocalizedMetadataBuilder,
@@ -100,12 +107,47 @@ function hasArtistProfile(metadata: Metadata | undefined): boolean {
   );
 }
 
-/** True when the document carries a refVersion 1.2.0 field (spec §4.1): `metadata.medium`,
- * `controls.permissions`, or `controls.display.imageRendering`. */
+/** `Link.type` values added at refVersion 1.2.0 alongside the Entity consolidation
+ * (spec §4.2, §12). */
+const LINK_TYPES_1_2_0 = new Set<Link['type']>([
+  'profile',
+  'publication',
+  'article',
+  'event',
+  'news',
+]);
+
+/** True when a `Link` carries a refVersion 1.2.0 addition: one of the new `type`
+ * values, or `title` / `date` / `thumbnail` / `authors` (spec §4.2). */
+function hasLink12Features(link: Link): boolean {
+  return (
+    LINK_TYPES_1_2_0.has(link.type) ||
+    link.title !== undefined ||
+    link.date !== undefined ||
+    link.thumbnail !== undefined ||
+    link.authors !== undefined
+  );
+}
+
+/** True when an artist `Entity` carries a refVersion 1.2.0 field: `key`, `role`,
+ * `location`, or a `links` entry with a 1.2.0 addition (spec §4.2). */
+function hasEntity12Features(entity: Entity): boolean {
+  return (
+    entity.key !== undefined ||
+    entity.role !== undefined ||
+    entity.location !== undefined ||
+    (entity.links ?? []).some(hasLink12Features)
+  );
+}
+
+/** True when the document carries a refVersion 1.2.0 field (spec §4.1, §4.2):
+ * `metadata.medium`, `controls.permissions`, `controls.display.imageRendering`, or an
+ * artist entity/link carrying a 1.2.0 Entity-consolidation addition. */
 function has12Features(doc: Partial<RefManifest>): boolean {
   return (
     doc.metadata?.medium !== undefined ||
     doc.controls?.permissions !== undefined ||
-    doc.controls?.display?.imageRendering !== undefined
+    doc.controls?.display?.imageRendering !== undefined ||
+    (doc.metadata?.artists ?? []).some(hasEntity12Features)
   );
 }
