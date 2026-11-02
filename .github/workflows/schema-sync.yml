@@ -1,0 +1,45 @@
+name: Schema sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/schema/**'
+      - 'scripts/check-schema-sync.sh'
+      - '.github/workflows/schema-sync.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/schema/**'
+      - 'scripts/check-schema-sync.sh'
+      - '.github/workflows/schema-sync.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    name: Embedded schemas match the pinned spec
+
+    # `src/schema/` is a hand-maintained copy of display-protocol/dp1. Nothing used to fail when
+    # it fell behind, so this job pins it: the schemas must be byte copies of the spec at the
+    # commit in src/schema/dp1-commit.txt. dp1-go runs the same check against the same pin.
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Read the pinned dp1 commit
+        id: pin
+        run: echo "sha=$(tr -d '[:space:]' < src/schema/dp1-commit.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout the spec at the pin
+        uses: actions/checkout@v4
+        with:
+          repository: display-protocol/dp1
+          ref: ${{ steps.pin.outputs.sha }}
+          path: .dp1
+          persist-credentials: false
+
+      - name: Compare
+        run: bash scripts/check-schema-sync.sh .dp1

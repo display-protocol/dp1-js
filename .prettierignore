@@ -2,3 +2,8 @@ coverage/
 dist/
 node_modules/
 src/validate/generated/
+# Byte copies of display-protocol/dp1 at the commit pinned in src/schema/dp1-commit.txt;
+# scripts/check-schema-sync.sh compares them byte-for-byte, so reformatting them would make
+# every sync a diff against upstream's own formatting instead of against its content.
+src/schema/core/
+src/schema/extensions/
