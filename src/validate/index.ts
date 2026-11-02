@@ -123,6 +123,40 @@ export function PlaylistWithPlaylistsExtension(
     options
   );
 }
+
+/**
+ * Validate a playlist against the core schema plus the draft content-rating extension
+ * fragment (per-item `contentRating` / `contentReasons`).
+ * Defaults to requiring signatures; pass `{ requireSignatures: false }` for unsigned drafts.
+ */
+export function PlaylistWithContentRatingExtension(
+  data: Buffer | string | unknown,
+  options?: RequireSignaturesOptions
+): void {
+  validateSignedDocument(
+    validators.playlistWithCrExt,
+    validators.playlistWithCrExtUnsigned,
+    data,
+    options
+  );
+}
+
+/**
+ * Validate a playlist against the playlists extension (core bundle + playlists overlay)
+ * plus the draft content-rating extension fragment, in one combined schema.
+ * Defaults to requiring signatures; pass `{ requireSignatures: false }` for unsigned drafts.
+ */
+export function PlaylistWithPlaylistsAndContentRatingExtensions(
+  data: Buffer | string | unknown,
+  options?: RequireSignaturesOptions
+): void {
+  validateSignedDocument(
+    validators.playlistWithPlaylistsAndCrExt,
+    validators.playlistWithPlaylistsAndCrExtUnsigned,
+    data,
+    options
+  );
+}
 export const RefManifest = (data: Buffer | string | unknown) =>
   validate(validators.refManifest, data);
 export const PlaylistsExtensionFragment = (data: Buffer | string | unknown) =>
@@ -139,6 +173,17 @@ export const parsePlaylistItem = PlaylistItem;
  */
 export const PlaylistItemWithPlaylistsExtension = (data: Buffer | string | unknown) =>
   validate(validators.playlistItemWithExt, data);
+
+/** Core PlaylistItem + the draft content-rating extension fragment. */
+export const PlaylistItemWithContentRatingExtension = (data: Buffer | string | unknown) =>
+  validate(validators.playlistItemWithCrExt, data);
+/** PlaylistItem + the playlists-extension overlay + the draft content-rating fragment. */
+export const PlaylistItemWithPlaylistsAndContentRatingExtensions = (
+  data: Buffer | string | unknown
+) => validate(validators.playlistItemWithPlaylistsAndCrExt, data);
+/** Items-only fragment: validates `contentRating` / `contentReasons` alone. */
+export const ContentRatingExtensionFragment = (data: Buffer | string | unknown) =>
+  validate(validators.contentRatingExt, data);
 
 // --- Leaf / $defs validators (schema-only; used by builders) ---
 
@@ -170,6 +215,7 @@ export const Artist = (data: Buffer | string | unknown) => validate(validators.a
 export const Biography = (data: Buffer | string | unknown) => validate(validators.biography, data);
 export const Link = (data: Buffer | string | unknown) => validate(validators.link, data);
 export const Metadata = (data: Buffer | string | unknown) => validate(validators.metadata, data);
+export const Medium = (data: Buffer | string | unknown) => validate(validators.medium, data);
 /** Localized text overrides under `i18n` (title / description / creditLine only). */
 export const LocalizedMetadata = (data: Buffer | string | unknown) =>
   validate(validators.localizedMetadata, data);

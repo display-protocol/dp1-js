@@ -15,6 +15,8 @@ import type { RefManifestBuilder } from './ref-manifest.js';
 import type { ReproBuilder } from './repro.js';
 import {
   PlaylistItem as ValidatePlaylistItem,
+  PlaylistItemWithContentRatingExtension as ValidatePlaylistItemWithCrExt,
+  PlaylistItemWithPlaylistsAndContentRatingExtensions as ValidatePlaylistItemWithExtAndCrExt,
   PlaylistItemWithPlaylistsExtension as ValidatePlaylistItemWithExt,
 } from '../validate/index.js';
 
@@ -95,6 +97,27 @@ export class PlaylistItemBuilder {
     return this;
   }
 
+  /**
+   * Content-rating extension overlay (draft, registry 1.0.7): a curatorial audience
+   * label. Open vocabulary — `v0.1.0` defines only `'general'` and `'mature'`.
+   */
+  contentRating(value: string) {
+    this.item.contentRating = value;
+    return this;
+  }
+
+  /** Open-vocabulary curatorial reasons supporting `.contentRating()`. */
+  contentReasons(values: string[]) {
+    this.item.contentReasons = [...values];
+    return this;
+  }
+
+  addContentReason(value: string) {
+    if (!this.item.contentReasons) this.item.contentReasons = [];
+    this.item.contentReasons.push(value);
+    return this;
+  }
+
   build(): PlaylistItem {
     const out: PlaylistItem = {
       source: String(this.item.source ?? ''),
@@ -113,10 +136,22 @@ export class PlaylistItemBuilder {
       ...(this.item.inlineManifest === undefined
         ? {}
         : { inlineManifest: this.item.inlineManifest }),
+      ...(this.item.contentRating === undefined ? {} : { contentRating: this.item.contentRating }),
+      ...(this.item.contentReasons === undefined
+        ? {}
+        : { contentReasons: this.item.contentReasons }),
     };
 
-    if (out.note !== undefined || out.displayAt !== undefined || out.inlineManifest !== undefined) {
+    const hasExt =
+      out.note !== undefined || out.displayAt !== undefined || out.inlineManifest !== undefined;
+    const hasContentRating = out.contentRating !== undefined || out.contentReasons !== undefined;
+
+    if (hasExt && hasContentRating) {
+      ValidatePlaylistItemWithExtAndCrExt(out);
+    } else if (hasExt) {
       ValidatePlaylistItemWithExt(out);
+    } else if (hasContentRating) {
+      ValidatePlaylistItemWithCrExt(out);
     } else {
       ValidatePlaylistItem(out);
     }

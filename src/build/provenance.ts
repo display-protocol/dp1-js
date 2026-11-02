@@ -31,7 +31,12 @@ export class ContractBuilder {
     return this;
   }
 
-  seriesId(value: number) {
+  /**
+   * Series identifier within the contract. Pass a `number` for small values or a
+   * decimal `string` (`^[0-9]+$`) for an id too large for a JSON number to hold exactly
+   * — for example a 256-bit id, the same reason `tokenId` is a string.
+   */
+  seriesId(value: number | string) {
     this.contract.seriesId = value;
     return this;
   }

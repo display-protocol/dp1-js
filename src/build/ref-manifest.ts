@@ -65,9 +65,15 @@ export class RefManifestBuilder {
     if (this.doc.created === undefined) this.doc.created = nowIso();
 
     // An unset version follows the fields the document carries: artist profile fields exist
-    // only from refVersion 1.1.0, so the default follows suit. An explicit `.refVersion()`
-    // still wins; the SDK validates shape only and does not police the pairing.
-    const defaultVersion = hasArtistProfile(this.doc.metadata) ? '1.1.0' : '0.1.0';
+    // only from refVersion 1.1.0, and medium / permissions / imageRendering only from 1.2.0
+    // (spec §4.1), so the default follows suit — highest first, since a 1.2.0 feature implies
+    // the 1.1.0 ones are also fine to carry. An explicit `.refVersion()` still wins; the SDK
+    // validates shape only and does not police the pairing.
+    const defaultVersion = has12Features(this.doc)
+      ? '1.2.0'
+      : hasArtistProfile(this.doc.metadata)
+        ? '1.1.0'
+        : '0.1.0';
 
     const out: RefManifest = {
       refVersion: String(this.doc.refVersion ?? defaultVersion) as RefManifest['refVersion'],
@@ -91,5 +97,15 @@ function hasArtistProfile(metadata: Metadata | undefined): boolean {
       a.avatar !== undefined ||
       a.biographies !== undefined ||
       a.links !== undefined
+  );
+}
+
+/** True when the document carries a refVersion 1.2.0 field (spec §4.1): `metadata.medium`,
+ * `controls.permissions`, or `controls.display.imageRendering`. */
+function has12Features(doc: Partial<RefManifest>): boolean {
+  return (
+    doc.metadata?.medium !== undefined ||
+    doc.controls?.permissions !== undefined ||
+    doc.controls?.display?.imageRendering !== undefined
   );
 }

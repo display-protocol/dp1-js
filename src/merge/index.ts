@@ -16,6 +16,7 @@ type DisplayPrefs = {
   background?: string;
   autoplay?: boolean;
   loop?: boolean;
+  imageRendering?: string;
   interaction?: InteractionPrefs;
   userOverrides?: Record<string, boolean>;
 };
@@ -26,6 +27,7 @@ type DisplayControls = {
   background?: string;
   autoplay?: boolean;
   loop?: boolean;
+  imageRendering?: string;
   interaction?: unknown;
 };
 
@@ -77,6 +79,7 @@ function overlayDisplay(dst: DisplayPrefs, src: DisplayPrefs) {
   if (src.background) dst.background = src.background;
   if (src.autoplay !== undefined) dst.autoplay = src.autoplay;
   if (src.loop !== undefined) dst.loop = src.loop;
+  if (src.imageRendering) dst.imageRendering = src.imageRendering;
   if (src.interaction) {
     if (!dst.interaction) dst.interaction = {};
     if (src.interaction.keyboard !== undefined) {
@@ -137,6 +140,7 @@ function applyDisplayJSON(dst: DisplayPrefs, src: DisplayControls) {
   if (src.background) dst.background = src.background;
   if (src.autoplay !== undefined) dst.autoplay = src.autoplay;
   if (src.loop !== undefined) dst.loop = src.loop;
+  if (src.imageRendering) dst.imageRendering = src.imageRendering;
   if (src.interaction !== undefined && src.interaction !== null) {
     if (!dst.interaction) dst.interaction = {};
     const parsed = parseRefInteraction(src.interaction);
@@ -160,6 +164,7 @@ function isEmptyDisplay(display: DisplayPrefs) {
     !display.background &&
     display.autoplay === undefined &&
     display.loop === undefined &&
+    !display.imageRendering &&
     !display.interaction &&
     (!display.userOverrides || Object.keys(display.userOverrides).length === 0)
   );
