@@ -54,6 +54,17 @@ test('EntityBuilder carries role, location and no longer requires key', () => {
   );
 });
 
+test('EntityBuilder.biographies() sets the whole list, replacing any prior entries', () => {
+  const entity = new EntityBuilder()
+    .name('Ada')
+    .addBiography({ text: 'dropped by the bulk set below' })
+    .biographies([{ text: 'Software artist.', source: 'DAM' }, { text: 'Second bio.' }])
+    .build();
+  assert.equal(entity.biographies?.length, 2);
+  assert.equal(entity.biographies?.[0]?.source, 'DAM');
+  assert.equal(entity.biographies?.[1]?.text, 'Second bio.');
+});
+
 test('Link gains the editorial type values and title/date/thumbnail/authors', () => {
   const link = {
     type: 'article' as const,
@@ -70,6 +81,15 @@ test('Link gains the editorial type values and title/date/thumbnail/authors', ()
     .build();
   assert.equal(playlist.links?.[0]?.title, 'A piece about the work');
   assert.equal(playlist.links?.[0]?.authors?.[0]?.name, 'A Writer');
+
+  // .links() sets the whole list at once, instead of appending one at a time.
+  const bulk = new PlaylistBuilder()
+    .title('T')
+    .addItem(new PlaylistItemBuilder().source('https://example.com/a.html'))
+    .links([link, { type: 'event', url: 'https://news.example/event' }])
+    .build();
+  assert.equal(bulk.links?.length, 2);
+  assert.equal(bulk.links?.[1]?.type, 'event');
 });
 
 test('MediumBuilder validates type and details', () => {
@@ -81,6 +101,10 @@ test('MediumBuilder validates type and details', () => {
 
   const meta = new MetadataBuilder().title('T').medium(medium).build();
   assert.equal(meta.medium?.type, 'video');
+
+  // .details() sets the whole list at once, instead of appending one at a time.
+  const bulk = new MediumBuilder().type('image').details(['4K', 'color']).build();
+  assert.deepEqual(bulk.details, ['4K', 'color']);
 });
 
 test('ControlsBuilder validates permissions', () => {
@@ -156,6 +180,14 @@ test('PlaylistItemBuilder carries contentRating and contentReasons', () => {
     .build();
   assert.equal(item.contentRating, 'mature');
   assert.deepEqual(item.contentReasons, ['nudity']);
+
+  // .contentReasons() sets the whole list at once, instead of appending one at a time.
+  const bulk = new PlaylistItemBuilder()
+    .source('https://example.com/a.html')
+    .contentRating('mature')
+    .contentReasons(['nudity', 'violence'])
+    .build();
+  assert.deepEqual(bulk.contentReasons, ['nudity', 'violence']);
 });
 
 test('PlaylistBuilder routes to the content-rating composed schema when items carry it', () => {
