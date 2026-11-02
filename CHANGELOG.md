@@ -2,6 +2,129 @@
 
 All notable changes to this project are documented here.
 
+## 2.5.0 — 2026-11-02
+
+Catches the SDK up with the DP-1 spec's Entity consolidation and the draft content-rating
+extension ([display-protocol/dp1#52](https://github.com/display-protocol/dp1/pull/52),
+[#55](https://github.com/display-protocol/dp1/pull/55)), matching `dp1-go` v0.7.0–v0.7.2
+field-for-field. A minor bump, not a patch: `Entity.key` goes from required to optional, and
+`Contract.seriesId` widens from `number` to `number | string`.
+
+### Added (schema pin and sync check)
+
+- `src/schema/dp1-commit.txt` names the `display-protocol/dp1` commit this SDK implements;
+  `scripts/check-schema-sync.sh <dp1-checkout>` fails when an embedded schema differs from
+  dp1 at that commit, when an upstream schema is missing locally, or when a local file has no
+  upstream counterpart (`playlist-group.json` is the one named exception — the spec removed
+  it in [dp1#41](https://github.com/display-protocol/dp1/pull/41), but this SDK keeps a
+  deprecated surface for it). `--write` copies the pinned files in; the TypeScript port stays
+  by hand. A `Schema sync` GitHub workflow runs the check on every change under
+  `src/schema/`, mirroring `dp1-go`'s own `check-schema-sync.sh`. `src/schema/` was resynced
+  to the pin, closing four spec PRs' worth of drift that nothing here had caught.
+- Pinned schema JSON is excluded from Prettier: reformatting a byte copy would make every
+  sync a diff against upstream's own formatting instead of its content.
+
+### Added (Entity consolidation — one model for everyone a DP-1 document names)
+
+- `Entity` is now the one model for an artist, a curator, a channel publisher, or a note's
+  author (dp1#55, registry 1.0.9). It gains `role`
+  (`'artist' | 'curator' | 'partner' | 'sponsor' | 'publisher' | 'other'`) and `location`,
+  alongside the `addresses` / `avatar` / `biographies` / `links` fields `Artist` already had.
+  `key` is **no longer required** — a wallet-based publisher can now be named with no DID.
+  `EntityBuilder` grows `.role()` and `.location()` to match.
+- `Artist` is now a type alias of `Entity`, and `ArtistBuilder` an alias of `EntityBuilder` —
+  same schema, byte-identical output — replacing a second hand-maintained copy that the
+  schema's own `$ref` consolidation made redundant.
+- `Link.type` gains `'profile' | 'publication' | 'article' | 'event' | 'news'`; `Link` gains
+  `title`, `date`, `thumbnail`, and `authors` (`Entity[]`), so a consumer can render a link as
+  a card — a headline, a date, a cover image, a byline — without fetching the page.
+- `src/validate/index.ts`'s `entity` leaf validator now points at the core Ref Manifest's
+  shared `Entity` definition instead of the old channels-only copy.
+
+### Added (refVersion 1.2.0: medium, permissions, imageRendering, decimal seriesId)
+
+- `Metadata.medium` (+ new `MediumBuilder`): what the work is made of, twice over — a
+  closed-enumeration `type` a catalog filters on, and `details[]` display lines shown under
+  the title.
+- `Controls.permissions` (+ `ControlsBuilder.permissions()` / `.addPermission()`): device
+  capabilities the work needs to run as intended (`'camera'`, `'microphone'`).
+- `DisplayPrefs.imageRendering` / `DisplayControls.imageRendering`
+  (`'auto' | 'pixelated'`, + builder methods on both), resolved by `merge.DisplayForItem` in
+  the same precedence slot as every other display field.
+- `Contract.seriesId` widens from `number` to `number | string`: a decimal string
+  (`^[0-9]+$`) for a series id too large for a JSON number to hold exactly — for example a
+  256-bit id, the same reason `tokenId` is a string. `ContractBuilder.seriesId()` accepts
+  either.
+- `RefManifestBuilder`'s `refVersion` default now reaches `'1.2.0'` when any of the above is
+  set, or when an artist entity/link carries any refVersion-1.2.0 Entity-consolidation
+  addition (`key` / `role` / `location`, or a `links` entry using a new `type` or carrying
+  `title` / `date` / `thumbnail` / `authors`) — the same pattern as the existing 1.1.0 lift
+  for artist-profile fields. An explicit `.refVersion()` still wins.
+
+### Added (playlist: openAt, links, visibility, Note title/author)
+
+- `Playlist.openAt` (dp1#55): when the playlist's own subject became public — an exhibition's
+  opening, a collection's release. Reuses `displayAt`'s wire shape for one consistent date
+  format, but is unrelated to §3.5 `displayAt` Scheduling and sets no eligibility, timer, or
+  activation; distinct from `created` too, which churns on every re-export.
+  `PlaylistBuilder.openAt()`.
+- `Playlist.links[]` (dp1#55): editorial content about the playlist — articles, events,
+  news — in display order, each a `Link` carrying a title, date, thumbnail and authors.
+  `PlaylistBuilder.links()` / `.addLink()`.
+- `Playlist.visibility` (dp1#55 §3.7, registry 1.0.8): `'public'` (the default when absent)
+  or `'unlisted'` — a listing request, not access control. `PlaylistBuilder.visibility()`.
+- `Note.title` and `Note.author` (an `Entity`; absent means the note is the curators' own).
+  `NoteBuilder.title()` / `.author()`.
+
+### Added (draft content-rating extension, registry 1.0.7)
+
+- `PlaylistItem.contentRating` / `.contentReasons`: an open-vocabulary curatorial audience
+  label (`v0.1.0` defines `'general'` and `'mature'`) and supporting reasons. Absence, or a
+  value this SDK does not recognize, means unrated — nothing is assumed from an unfamiliar
+  label, and only `'mature'` hides anything. New `src/extension/content-rating/` module
+  exports `ContentRatingGeneral`, `ContentRatingMature`, and `isKnownContentRating` to branch
+  on the values this SDK defines, matching `dp1-go`'s `Rating.Known()`.
+- `PlaylistItemBuilder.contentRating()` / `.contentReasons()` / `.addContentReason()`, and
+  `PlaylistBuilder` / `PlaylistItemBuilder` now route to the narrowest composed schema their
+  fields require: core, playlists-extension, content-rating, or both extensions together.
+- `PlaylistItemsFromDynamicQuery` now validates dynamic items against the combined
+  playlists+content-rating schema instead of playlists alone, so a malformed rating on a
+  dynamic item is rejected rather than passed through as unrated — parity with the `dp1-go`
+  v0.6.2 fix.
+- New validators: `ValidateContentRatingExtensionFragment`,
+  `ValidatePlaylistItemWithContentRatingExtension`,
+  `ValidatePlaylistWithContentRatingExtension`,
+  `ValidatePlaylistWithPlaylistsAndContentRatingExtensions`, and their per-item /
+  combined-extension counterparts.
+
+### Changed (breaking at compile time: `Entity.key` optional, `Contract.seriesId` widened)
+
+- `Entity.key?: string` (was `key: string`): a document or a builder call that omitted `key`
+  and relied on the compiler to catch that now compiles; one that read `entity.key` as always
+  a `string` must now handle `undefined`. No existing valid document stops validating — the
+  schema itself dropped the requirement (dp1#55).
+- `Contract.seriesId?: number | string` (was `number`): a consumer that assigned
+  `contract.seriesId` to a variable typed `number` no longer compiles without a narrowing
+  check. Every `seriesId` this SDK has ever emitted is still a valid `number`, so no existing
+  value's _meaning_ changes — only the type a reader must now account for.
+
+### Fixed
+
+- `RefManifestBuilder`'s refVersion-1.2.0 detection covered only `medium` / `permissions` /
+  `imageRendering` and missed the Entity-consolidation additions that landed in the same spec
+  change: an artist entity carrying `key` / `role` / `location`, or a `links` entry using a
+  new `type` (`profile` / `publication` / `article` / `event` / `news`) or carrying `title` /
+  `date` / `thumbnail` / `authors`, was still defaulted to `refVersion: '1.1.0'`. Found by
+  `feralfile-bot`'s review of [#38](https://github.com/display-protocol/dp1-js/pull/38).
+
+### Parity with dp1-go
+
+- Both SDKs now pin the same `display-protocol/dp1` commit via the same
+  `check-schema-sync.sh` contract, so a document either SDK accepts or rejects — including
+  every field and extension added in this release — is accepted or rejected the same way by
+  the other, schema-for-schema. The README's former "parity is partial" list of known
+  divergences no longer applies.
+
 ## 2.4.1 — 2026-09-14
 
 ### Added (artist profile on the Ref Manifest — refVersion 1.1.0)

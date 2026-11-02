@@ -326,9 +326,7 @@ test('RefManifestBuilder defaults refVersion to 1.2.0 for artist Entity/Link add
       new MetadataBuilder()
         .title('T')
         .addArtist(
-          new EntityBuilder()
-            .name('A')
-            .addLink({ type: 'article', url: 'https://example.com/a' })
+          new EntityBuilder().name('A').addLink({ type: 'article', url: 'https://example.com/a' })
         )
     )
     .build();
