@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## 2.6.0 — 2026-11-09
+## 2.5.1 — 2026-11-09
 
 Adds the Playlist Extension's `satellites[]` field from the draft DP-1 amendment
 ([display-protocol/dp1#62](https://github.com/display-protocol/dp1/issues/62),
