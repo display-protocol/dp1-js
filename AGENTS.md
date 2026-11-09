@@ -57,18 +57,18 @@ A task is complete only when:
 2. Relevant tests were added or updated, or an explicit reason is given when none were appropriate.
 3. Verification passes cleanly (lint, typecheck, tests).
 4. Docs and `.cursor` rules are updated if user-facing API or agent workflow expectations changed.
-5. Review has accepted the change (see Review loop).
+5. For non-trivial changes, a fresh-context review has reported findings for the change owner to disposition.
 6. The branch is merge-ready without hidden follow-up work.
 
-## Review loop
+## Review workflow
 
-After implementation, run a review loop before merge or release preparation.
+For non-trivial changes, run one fresh-context review after implementation.
 
 1. Create a compact handoff with goal, scope, files changed, key decisions, checks run, and known limitations.
-2. Run a fresh-context review using the shared contract in `prompts/code-review.md`.
+2. Run a fresh-context review using the generated contract in `prompts/code-review.md` and the repository-specific checks in `prompts/code-review.delta.md`.
 3. Provide `git diff --stat`, full `git diff`, and lint/test output when practical.
-4. If review returns `Verdict: revise`, address findings, re-run verification, update the handoff, and review again.
-5. Only proceed to commit, push, or PR when the reviewer returns `Verdict: accept`.
+4. The named human change owner decides how to disposition each finding.
+5. Treat the verdict as a sensor reading; it carries no commit, merge, or release authority.
 
 **Tool mappings**
 
@@ -81,5 +81,6 @@ After implementation, run a review loop before merge or release preparation.
 - Claude Code entrypoint: `CLAUDE.md` (imports `AGENTS.md`)
 - Cursor rules: `.cursor/rules/`
 - Cursor sub-agents: `.cursor/agents/`
-- Shared review prompt: `prompts/code-review.md`
+- Generated review contract: `prompts/code-review.md`
+- Repository review delta: `prompts/code-review.delta.md`
 - OpenCode config (optional): `opencode.json`
