@@ -9,6 +9,7 @@ import type {
   Note,
   Playlist,
   PlaylistItem,
+  Satellite,
 } from './types.js';
 import type { DisplayPrefsBuilder } from './display.js';
 import type { DynamicQueryBuilder } from './dynamic-query.js';
@@ -31,7 +32,8 @@ function hasPlaylistsExtensionFields(doc: Playlist): boolean {
     doc.coverImage !== undefined ||
     doc.dynamicQuery !== undefined ||
     doc.links !== undefined ||
-    doc.visibility !== undefined
+    doc.visibility !== undefined ||
+    doc.satellites !== undefined
   ) {
     return true;
   }
@@ -65,6 +67,7 @@ export class PlaylistBuilder {
     dynamicQuery?: DynamicQuery;
     links?: Link[];
     visibility?: string;
+    satellites?: Satellite[];
   } = { items: [] };
 
   dpVersion(value: string) {
@@ -188,6 +191,22 @@ export class PlaylistBuilder {
   }
 
   /**
+   * Smaller playlists published around this one — a burn record, a memento run, a
+   * catalog or launch-party edition — named here on the parent and rendered as sections
+   * of this playlist's page (§3.8).
+   */
+  satellites(values: Satellite[]) {
+    this.doc.satellites = values.map(v => ({ ...v }));
+    return this;
+  }
+
+  addSatellite(value: Satellite) {
+    if (!this.doc.satellites) this.doc.satellites = [];
+    this.doc.satellites.push({ ...value });
+    return this;
+  }
+
+  /**
    * Build an unsigned playlist document and schema-validate it. Picks the narrowest
    * schema the document's fields require: core-only, the playlists extension, the
    * draft content-rating extension, or both extensions composed together (or when
@@ -214,6 +233,7 @@ export class PlaylistBuilder {
       ...(this.doc.dynamicQuery === undefined ? {} : { dynamicQuery: this.doc.dynamicQuery }),
       ...(this.doc.links === undefined ? {} : { links: this.doc.links }),
       ...(this.doc.visibility === undefined ? {} : { visibility: this.doc.visibility }),
+      ...(this.doc.satellites === undefined ? {} : { satellites: this.doc.satellites }),
     };
 
     const needsPlaylistsExt = hasPlaylistsExtensionFields(out) || out.items.length === 0;
