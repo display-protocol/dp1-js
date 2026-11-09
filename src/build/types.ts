@@ -318,12 +318,11 @@ export interface Link {
  */
 export interface Satellite {
   /**
-   * URI of the satellite's playlist (or the channel-relative address a consumer
-   * resolves the same way it resolves any other playlist reference).
+   * Absolute URI of the satellite's own playlist.
    */
   playlist: string;
   /**
-   * Open vocabulary (as in `contentRating` and `visibility`): the kind of satellite
+   * Open vocabulary (as in `contentRating`): the kind of satellite
    * this is, e.g. `'burn'`, `'mementos'`, `'catalog'`, `'launch-party'`. An
    * unrecognized value is still a valid satellite, just an unlabeled one.
    */

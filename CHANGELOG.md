@@ -16,7 +16,7 @@ All notable changes to this project are documented here.
   required; optional `title`, `note`); `PlaylistBuilder.satellites()` / `.addSatellite()`,
   matching `.links()` / `.addLink()`. `ValidateSatellite` joins the `Validate*` helpers.
 - `src/schema/dp1-commit.txt` is temporarily pinned to
-  `5273f88d95c3ce68e1fe45eff54cc5966823b3f7` on the still-open dp1#63 draft branch (not a
+  `9a172f0604db3f895c94be537625c59a75c52871` on the still-open dp1#63 draft branch (not a
   commit on `display-protocol/dp1`'s default branch) so the embedded schema can carry
   `satellites[]` ahead of merge. Re-pin to a commit on `main` once dp1#63 merges and tags.
 

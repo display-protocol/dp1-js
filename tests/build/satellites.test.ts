@@ -1,6 +1,6 @@
 // Coverage for the Playlist Extension's `satellites[]` field (dp1#62, draft dp1#63 §3.8):
 // a burn record, a memento run, a catalog or launch-party edition named on a parent
-// playlist and rendered as a labeled section of its page. Pinned to dp1 commit 5273f88
+// playlist and rendered as a labeled section of its page. Pinned to dp1 commit 9a172f0
 // (claude/satellites-playlist-field-6a64b3, draft — not yet merged/tagged).
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
