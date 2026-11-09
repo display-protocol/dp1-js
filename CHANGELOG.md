@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented here.
 
+## Unreleased
+
+### Added (playlist: satellites, draft dp1#63)
+
+- `Playlist.satellites[]` ([display-protocol/dp1#62](https://github.com/display-protocol/dp1/issues/62),
+  draft [#63](https://github.com/display-protocol/dp1/pull/63) §3.8): smaller playlists
+  published around this one — a burn record, a memento run, a catalog or launch-party
+  edition — named here on the parent and rendered as a labeled section of its page, rather
+  than as a show of its own. Each satellite stays a complete, independent playlist and a
+  member of `channel.playlists[]` in its own right; `satellites[]` only changes how a
+  browsing consumer presents it. New `Satellite` type (`playlist` URI and `kind`, both
+  required; optional `title`, `note`); `PlaylistBuilder.satellites()` / `.addSatellite()`,
+  matching `.links()` / `.addLink()`. `ValidateSatellite` joins the `Validate*` helpers.
+- `src/schema/dp1-commit.txt` is temporarily pinned to
+  `9a172f0604db3f895c94be537625c59a75c52871` on the still-open dp1#63 draft branch (not a
+  commit on `display-protocol/dp1`'s default branch) so the embedded schema can carry
+  `satellites[]` ahead of merge. Re-pin to a commit on `main` once dp1#63 merges and tags.
+
 ## 2.5.0 — 2026-11-02
 
 Catches the SDK up with the DP-1 spec's Entity consolidation and the draft content-rating

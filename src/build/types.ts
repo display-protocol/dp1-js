@@ -194,6 +194,14 @@ export interface Playlist {
    * Directories treat any value other than exactly `'public'` as unlisted.
    */
   visibility?: string;
+  /**
+   * Smaller playlists published around this one — a burn record, a memento run, a
+   * catalog or launch-party edition — named here on the parent and rendered as sections
+   * of this playlist's page (§3.8, dp1#62/#63). Each satellite stays a complete,
+   * independent playlist and a member of `channel.playlists[]` in its own right;
+   * `satellites[]` only changes how a browsing consumer presents it.
+   */
+  satellites?: Satellite[];
 }
 
 /**
@@ -297,6 +305,32 @@ export interface Link {
    * carrying it, as it would for a collaboration.
    */
   authors?: Entity[];
+}
+
+/**
+ * A smaller playlist published around this one — a burn record, a memento run, a
+ * catalog or launch-party edition — that a consumer implementing §3.8 should present as
+ * a labeled section of this playlist's page rather than as a show of its own (dp1#62).
+ * Independent document: its own series, id and signature; this entry only names it and
+ * how to present it. The relation is named on the parent only — a satellite's own
+ * playlist carries no back-reference, the same pattern `Channel.playlists[]` uses one
+ * level up.
+ */
+export interface Satellite {
+  /**
+   * Absolute URI of the satellite's own playlist.
+   */
+  playlist: string;
+  /**
+   * Open vocabulary (as in `contentRating`): the kind of satellite
+   * this is, e.g. `'burn'`, `'mementos'`, `'catalog'`, `'launch-party'`. An
+   * unrecognized value is still a valid satellite, just an unlabeled one.
+   */
+  kind: string;
+  /** Heading shown above the satellite's items, when different from a human-readable form of `kind`. */
+  title?: string;
+  /** One paragraph of context shown above the satellite's items. */
+  note?: string;
 }
 
 /** One biographical text with optional attribution. `text` is plain text, no markup. */

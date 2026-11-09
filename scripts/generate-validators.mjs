@@ -212,6 +212,7 @@ const validators = {
   entity: `${refManifest.$id}#/$defs/Entity`,
   dynamicQuery: `${playlistsExt.$id}#/$defs/DynamicQuery`,
   responseMapping: `${playlistsExt.$id}#/$defs/ResponseMapping`,
+  satellite: `${playlistsExt.$id}#/$defs/Satellite`,
 
   thumbnail: `${refManifest.$id}#/$defs/Thumbnail`,
   artist: `${refManifest.$id}#/$defs/Artist`,

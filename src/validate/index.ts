@@ -193,6 +193,7 @@ export const DynamicQuery = (data: Buffer | string | unknown) =>
   validate(validators.dynamicQuery, data);
 export const ResponseMapping = (data: Buffer | string | unknown) =>
   validate(validators.responseMapping, data);
+export const Satellite = (data: Buffer | string | unknown) => validate(validators.satellite, data);
 
 export const DisplayPrefs = (data: Buffer | string | unknown) =>
   validate(validators.displayPrefs, data);
