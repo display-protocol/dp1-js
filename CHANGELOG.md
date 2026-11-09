@@ -2,7 +2,14 @@
 
 All notable changes to this project are documented here.
 
-## Unreleased
+## 2.5.1 — 2026-11-09
+
+Adds the Playlist Extension's `satellites[]` field from the draft DP-1 amendment
+([display-protocol/dp1#62](https://github.com/display-protocol/dp1/issues/62),
+[#63](https://github.com/display-protocol/dp1/pull/63)): smaller playlists — a burn
+record, a memento run, a catalog or launch-party edition — named on a parent playlist and
+rendered as a labeled section of its page. Minor rather than patch: it's a new optional
+field and builder surface, additive to every existing document and call site.
 
 ### Added (playlist: satellites, draft dp1#63)
 
