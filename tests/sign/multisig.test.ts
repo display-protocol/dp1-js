@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { generateKeyPairSync } from 'node:crypto';
 import {
   SignMultiEd25519,
+  SignMultiEIP191,
   VerifyMultiEd25519,
   VerifyMultiSignaturesJSON,
   VerifyPlaylistSignatures,
@@ -221,4 +222,16 @@ test('VerifyMultiSignaturesJSON_untrustedFutureCoSignerIsIgnored', async () => {
     now: new Date('2025-06-01T00:00:00Z'),
   });
   assert.equal(ok, true);
+});
+
+test('VerifyMultiSignaturesJSON_trustedKidsMatchDidPkhCaseInsensitively', async () => {
+  const key = Buffer.alloc(32, 0x11);
+  const body = Buffer.from(JSON.stringify({ title: 'x' }));
+  const sig = await SignMultiEIP191(body, key, 1, 'feed', '2025-01-01T00:00:00Z');
+  const raw = Buffer.from(JSON.stringify({ title: 'x', signatures: [sig] }));
+  const lower =
+    sig.kid.slice(0, 'did:pkh:eip155:1:'.length) +
+    sig.kid.slice('did:pkh:eip155:1:'.length).toLowerCase();
+  assert.equal(VerifyMultiSignaturesJSON(raw, { trustedKids: [lower] })[0], true);
+  assert.equal(VerifyMultiSignaturesJSON(raw, { trustedKids: [sig.kid] })[0], true);
 });

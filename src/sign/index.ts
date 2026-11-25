@@ -472,11 +472,23 @@ export type VerifyPolicy = {
   maxClockSkewMs?: number;
 };
 
+/** Canonical form of a `kid` for trust comparison: `did:pkh:eip155` addresses are EIP-55 checksummed. */
+function canonicalKid(kid: unknown) {
+  const k = String(kid);
+  if (!k.toLowerCase().startsWith(didPkhPrefix)) return k;
+  try {
+    const [addr, chainID] = EthereumAddressFromDIDPKH(k);
+    return EthereumAddressToDIDPKH(addr, chainID);
+  } catch {
+    return k;
+  }
+}
+
 export function VerifyMultiSignaturesJSON(raw: Buffer | string, policy?: VerifyPolicy) {
   const envelope = JSON.parse(Buffer.isBuffer(raw) ? raw.toString('utf8') : String(raw));
   if (!Array.isArray(envelope.signatures) || envelope.signatures.length === 0)
     throw ErrNoSignatures;
-  const trusted = policy?.trustedKids ? new Set(policy.trustedKids) : null;
+  const trusted = policy?.trustedKids ? new Set([...policy.trustedKids].map(canonicalKid)) : null;
   const failed = [];
   let trustedVerified = 0;
   for (const sig of envelope.signatures) {
@@ -484,7 +496,7 @@ export function VerifyMultiSignaturesJSON(raw: Buffer | string, policy?: VerifyP
       VerifyMultiSignature(raw, sig);
       // A valid signature from an unlisted kid is simply not counted: it neither fails the
       // document nor satisfies the policy.
-      if (trusted && !trusted.has(sig.kid)) continue;
+      if (trusted && !trusted.has(canonicalKid(sig.kid))) continue;
       trustedVerified++;
       if (policy?.rejectFutureTimestamps) {
         const ts = Date.parse(sig.ts);
