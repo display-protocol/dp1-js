@@ -464,7 +464,8 @@ export type VerifyPolicy = {
   trustedKids?: Iterable<string>;
   /**
    * At least one signature that verified, from a trusted `kid`, must carry one of these roles.
-   * §7.1.1 requires `['feed', 'curator']` for players.
+   * §7.1.1 requires `['feed', 'curator']` for players. Requires `trustedKids`: a role label on a
+   * self-chosen key proves nothing, so the call throws without it.
    */
   requireRoles?: readonly string[];
   /** Reject signatures whose `ts` is later than `now` plus `maxClockSkewMs`. */
@@ -479,6 +480,10 @@ export function VerifyMultiSignaturesJSON(raw: Buffer | string, policy?: VerifyP
   const envelope = JSON.parse(Buffer.isBuffer(raw) ? raw.toString('utf8') : String(raw));
   if (!Array.isArray(envelope.signatures) || envelope.signatures.length === 0)
     throw ErrNoSignatures;
+  if (policy?.requireRoles?.length && !policy.trustedKids)
+    throw new Error(
+      'dp1: VerifyPolicy.requireRoles needs trustedKids; a role claimed by a self-chosen key proves nothing'
+    );
   const trusted = policy?.trustedKids ? new Set(policy.trustedKids) : null;
   const failed = [];
   let roleSatisfied = !policy?.requireRoles?.length;

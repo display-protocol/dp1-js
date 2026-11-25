@@ -149,12 +149,24 @@ test('VerifyMultiSignaturesJSON_requireRoles', async () => {
   const agent = await signedBy('agent');
   const [ok, failed, err] = VerifyMultiSignaturesJSON(agent.raw, {
     requireRoles: ['feed', 'curator'],
+    trustedKids: [agent.sig.kid],
   });
   assert.equal(ok, false);
   assert.equal(failed, null);
   assert.match(String(err?.message), /required role/);
   const feed = await signedBy('feed');
-  assert.equal(VerifyMultiSignaturesJSON(feed.raw, { requireRoles: ['feed', 'curator'] })[0], true);
+  const roles = ['feed', 'curator'];
+  assert.equal(
+    VerifyMultiSignaturesJSON(feed.raw, { requireRoles: roles, trustedKids: [feed.sig.kid] })[0],
+    true
+  );
+  // a role label on a self-chosen key proves nothing: requireRoles alone is refused, and an
+  // untrusted key does not satisfy it
+  assert.throws(() => VerifyMultiSignaturesJSON(feed.raw, { requireRoles: roles }), /trustedKids/);
+  assert.equal(
+    VerifyMultiSignaturesJSON(feed.raw, { requireRoles: roles, trustedKids: ['did:key:other'] })[0],
+    false
+  );
 });
 
 test('VerifyMultiSignaturesJSON_trustedKids', async () => {
