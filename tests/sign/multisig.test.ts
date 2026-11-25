@@ -231,3 +231,19 @@ test('VerifyMultiSignaturesJSON_untrustedCoSignerDoesNotFailTrustedDocument', as
   );
   assert.equal(VerifyMultiSignaturesJSON(bad, policy)[0], false);
 });
+
+test('VerifyMultiSignaturesJSON_untrustedFutureCoSignerIsIgnored', async () => {
+  const { privateKey: k1 } = generateKeyPairSync('ed25519');
+  const { privateKey: k2 } = generateKeyPairSync('ed25519');
+  const body = Buffer.from(JSON.stringify({ title: 'x' }));
+  const feed = await SignMultiEd25519(body, k1, 'feed', '2025-01-01T00:00:00Z');
+  const other = await SignMultiEd25519(body, k2, 'agent', '2099-01-01T00:00:00Z');
+  const raw = Buffer.from(JSON.stringify({ title: 'x', signatures: [feed, other] }));
+  const [ok] = VerifyMultiSignaturesJSON(raw, {
+    trustedKids: [feed.kid],
+    requireRoles: ['feed'],
+    rejectFutureTimestamps: true,
+    now: new Date('2025-06-01T00:00:00Z'),
+  });
+  assert.equal(ok, true);
+});

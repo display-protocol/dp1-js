@@ -464,7 +464,10 @@ export type VerifyPolicy = {
   trustedKids?: Iterable<string>;
   /**
    * At least one signature that verified, from a trusted `kid`, must carry one of these roles.
-   * §7.1.1 requires `['feed', 'curator']` for players. Requires `trustedKids`: a role label on a
+   * §7.1.1 requires `['feed', 'curator']` for players. NOTE: a signature's `role` and `ts` are
+   * not covered by what the signature signs (the digest is over the document body alone), so
+   * anyone can relabel them; the role check is a policy filter on claimed roles, not proof of
+   * the signer's authority. Requires `trustedKids`: a role label on a
    * self-chosen key proves nothing, so the call throws without it.
    */
   requireRoles?: readonly string[];
@@ -491,16 +494,16 @@ export function VerifyMultiSignaturesJSON(raw: Buffer | string, policy?: VerifyP
   for (const sig of envelope.signatures) {
     try {
       VerifyMultiSignature(raw, sig);
+      // A valid signature from an unlisted kid is simply not counted: it neither fails the
+      // document nor satisfies the policy.
+      if (trusted && !trusted.has(sig.kid)) continue;
+      trustedVerified++;
       if (policy?.rejectFutureTimestamps) {
         const ts = Date.parse(sig.ts);
         const limit = (policy.now ?? new Date()).getTime() + (policy.maxClockSkewMs ?? 300_000);
         if (!Number.isFinite(ts) || ts > limit)
           throw new Error('dp1: signature ts is in the future');
       }
-      // A valid signature from an unlisted kid is simply not counted: it neither fails the
-      // document nor satisfies the policy.
-      if (trusted && !trusted.has(sig.kid)) continue;
-      trustedVerified++;
       if (policy?.requireRoles?.includes(sig.role)) roleSatisfied = true;
     } catch {
       failed.push(sig);
