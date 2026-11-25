@@ -230,7 +230,9 @@ export function DurationForItem(def: ScalarDefaultsLike, item: ScalarItemLike) {
 
 /**
  * Resolve an item's license mode: the item's own `license`, else `defaults.license`.
- * Returns `undefined` when neither is set; callers decide the policy for that case.
+ * Returns `undefined` when neither is set; callers decide the policy for that case. The schema
+ * annotates `"default": "open"` but no validator applies it, and this helper does not either:
+ * silently turning "unset" into "open" would grant access on a document that never said so.
  */
 export function LicenseForItem(def: ScalarDefaultsLike, item: ScalarItemLike) {
   const valid = (v: unknown): v is string => typeof v === 'string' && v.length > 0;
