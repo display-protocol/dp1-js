@@ -145,30 +145,6 @@ test('VerifyMultiSignaturesJSON_withoutPolicyOnlyProvesIntegrity', async () => {
   assert.equal(VerifyMultiSignaturesJSON(raw)[0], true);
 });
 
-test('VerifyMultiSignaturesJSON_requireRoles', async () => {
-  const agent = await signedBy('agent');
-  const [ok, failed, err] = VerifyMultiSignaturesJSON(agent.raw, {
-    requireRoles: ['feed', 'curator'],
-    trustedKids: [agent.sig.kid],
-  });
-  assert.equal(ok, false);
-  assert.equal(failed, null);
-  assert.match(String(err?.message), /required role/);
-  const feed = await signedBy('feed');
-  const roles = ['feed', 'curator'];
-  assert.equal(
-    VerifyMultiSignaturesJSON(feed.raw, { requireRoles: roles, trustedKids: [feed.sig.kid] })[0],
-    true
-  );
-  // a role label on a self-chosen key proves nothing: requireRoles alone is refused, and an
-  // untrusted key does not satisfy it
-  assert.throws(() => VerifyMultiSignaturesJSON(feed.raw, { requireRoles: roles }), /trustedKids/);
-  assert.equal(
-    VerifyMultiSignaturesJSON(feed.raw, { requireRoles: roles, trustedKids: ['did:key:other'] })[0],
-    false
-  );
-});
-
 test('VerifyMultiSignaturesJSON_trustedKids', async () => {
   const { raw, sig } = await signedBy('feed');
   assert.equal(VerifyMultiSignaturesJSON(raw, { trustedKids: [sig.kid] })[0], true);
@@ -219,7 +195,7 @@ test('VerifyMultiSignaturesJSON_untrustedCoSignerDoesNotFailTrustedDocument', as
   const feed = await SignMultiEd25519(body, k1, 'feed', '2025-01-01T00:00:00Z');
   const agent = await SignMultiEd25519(body, k2, 'agent', '2025-01-01T00:00:00Z');
   const raw = Buffer.from(JSON.stringify({ title: 'x', signatures: [feed, agent] }));
-  const policy = { trustedKids: [feed.kid], requireRoles: ['feed', 'curator'] };
+  const policy = { trustedKids: [feed.kid] };
   assert.equal(VerifyMultiSignaturesJSON(raw, policy)[0], true);
   // only an untrusted signer: valid, but nothing trusted verified
   const [ok, , err] = VerifyMultiSignaturesJSON(raw, { trustedKids: ['did:key:other'] });
@@ -241,7 +217,6 @@ test('VerifyMultiSignaturesJSON_untrustedFutureCoSignerIsIgnored', async () => {
   const raw = Buffer.from(JSON.stringify({ title: 'x', signatures: [feed, other] }));
   const [ok] = VerifyMultiSignaturesJSON(raw, {
     trustedKids: [feed.kid],
-    requireRoles: ['feed'],
     rejectFutureTimestamps: true,
     now: new Date('2025-06-01T00:00:00Z'),
   });

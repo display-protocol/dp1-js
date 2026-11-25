@@ -456,21 +456,14 @@ function encodeBase58btc(input: Buffer | Uint8Array) {
 /**
  * Optional trust policy for `VerifyMultiSignaturesJSON` and the `Verify*Signatures` wrappers.
  * Without it the functions only prove integrity: every signature matches the `kid` embedded in
- * itself, so anyone can mint a key and re-sign a document. A player passes a policy to also
- * establish who signed (DP-1 §7.1.1).
+ * itself, so anyone can mint a key and re-sign a document. A player passes `trustedKids` to
+ * also establish who signed. A signature's `role` and `ts` are not covered by what it signs
+ * (the digest is over the document body alone), so neither is a trust signal: there is
+ * deliberately no role policy here.
  */
 export type VerifyPolicy = {
   /** When set, at least one signature from a listed `kid` must verify. Signatures from other kids still have to verify cryptographically but are not counted as trusted, so they neither fail nor satisfy the policy. */
   trustedKids?: Iterable<string>;
-  /**
-   * At least one signature that verified, from a trusted `kid`, must carry one of these roles.
-   * §7.1.1 requires `['feed', 'curator']` for players. NOTE: a signature's `role` and `ts` are
-   * not covered by what the signature signs (the digest is over the document body alone), so
-   * anyone can relabel them; the role check is a policy filter on claimed roles, not proof of
-   * the signer's authority. Requires `trustedKids`: a role label on a
-   * self-chosen key proves nothing, so the call throws without it.
-   */
-  requireRoles?: readonly string[];
   /** Reject signatures whose `ts` is later than `now` plus `maxClockSkewMs`. */
   rejectFutureTimestamps?: boolean;
   /** Clock for `rejectFutureTimestamps`; defaults to the current time. */
@@ -483,13 +476,8 @@ export function VerifyMultiSignaturesJSON(raw: Buffer | string, policy?: VerifyP
   const envelope = JSON.parse(Buffer.isBuffer(raw) ? raw.toString('utf8') : String(raw));
   if (!Array.isArray(envelope.signatures) || envelope.signatures.length === 0)
     throw ErrNoSignatures;
-  if (policy?.requireRoles?.length && !policy.trustedKids)
-    throw new Error(
-      'dp1: VerifyPolicy.requireRoles needs trustedKids; a role claimed by a self-chosen key proves nothing'
-    );
   const trusted = policy?.trustedKids ? new Set(policy.trustedKids) : null;
   const failed = [];
-  let roleSatisfied = !policy?.requireRoles?.length;
   let trustedVerified = 0;
   for (const sig of envelope.signatures) {
     try {
@@ -504,22 +492,12 @@ export function VerifyMultiSignaturesJSON(raw: Buffer | string, policy?: VerifyP
         if (!Number.isFinite(ts) || ts > limit)
           throw new Error('dp1: signature ts is in the future');
       }
-      if (policy?.requireRoles?.includes(sig.role)) roleSatisfied = true;
     } catch {
       failed.push(sig);
     }
   }
   if (failed.length === 0 && trusted && trustedVerified === 0) {
     return [false, null, new Error('dp1: no verified signature from a trusted kid')] as const;
-  }
-  if (failed.length === 0 && !roleSatisfied) {
-    return [
-      false,
-      null,
-      new Error(
-        `dp1: no verified signature with a required role (${policy?.requireRoles?.join(', ')})`
-      ),
-    ] as const;
   }
   return [failed.length === 0, failed.length ? failed : null, null] as const;
 }
