@@ -158,10 +158,11 @@ test('a parse-only consumer tree-shakes the validator chunk away', async () => {
       return result.outputFiles[0].text;
     };
 
-    // `parsePlaylist` and the schedule helpers, but no builder: `build()` schema-validates, so
-    // every `*Builder` legitimately pulls the validators in and is not a parse-only import.
+    // The schedule helpers, JCS and version parsing, but no builder and no `parse*` document
+    // helper: `build()` and (since the R3 fix) `parsePlaylist` / `parseChannel` /
+    // `parseRefManifest` schema-validate, so they legitimately pull the validators in.
     const parseOnly = await bundle(
-      `import { parsePlaylist, computeActiveSet, JcsTransform } from 'dp1-js';\nglobalThis.keep = [parsePlaylist, computeActiveSet, JcsTransform];\n`
+      `import { ParseDPVersion, computeActiveSet, JcsTransform } from 'dp1-js';\nglobalThis.keep = [ParseDPVersion, computeActiveSet, JcsTransform];\n`
     );
     const validating = await bundle(
       `import { ValidatePlaylist } from 'dp1-js';\nglobalThis.keep = [ValidatePlaylist];\n`

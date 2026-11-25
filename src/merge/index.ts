@@ -91,10 +91,11 @@ function overlayDisplay(dst: DisplayPrefs, src: DisplayPrefs) {
       if (!dst.interaction.mouse) dst.interaction.mouse = {};
       const m = dst.interaction.mouse;
       const sm = src.interaction.mouse;
-      if (sm.click) m.click = sm.click;
-      if (sm.scroll) m.scroll = sm.scroll;
-      if (sm.drag) m.drag = sm.drag;
-      if (sm.hover) m.hover = sm.hover;
+      // `false` is a value: an item must be able to turn off a flag that defaults enabled.
+      if (sm.click !== undefined) m.click = sm.click;
+      if (sm.scroll !== undefined) m.scroll = sm.scroll;
+      if (sm.drag !== undefined) m.drag = sm.drag;
+      if (sm.hover !== undefined) m.hover = sm.hover;
     }
   }
   if (src.userOverrides && Object.keys(src.userOverrides).length > 0) {
@@ -209,4 +210,33 @@ export function DisplayForItem(def: DefaultsLike, ref: RefLike, item: ItemLike) 
 
   const out = isEmptyDisplay(base) ? null : base;
   return [out, null] as const;
+}
+
+type ScalarDefaultsLike = { duration?: unknown; license?: unknown } | null | undefined;
+type ScalarItemLike = { duration?: unknown; license?: unknown } | null | undefined;
+
+/**
+ * Resolve an item's display duration in seconds: the item's own `duration`, else
+ * `defaults.duration` (§2 inheritance rule). Returns `undefined` when neither is set, in which
+ * case the player keeps rendering until externally instructed. Non-numeric or negative values
+ * are treated as unset, as the schema forbids them.
+ */
+export function DurationForItem(def: ScalarDefaultsLike, item: ScalarItemLike) {
+  const valid = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0;
+  if (valid(item?.duration)) return item.duration;
+  if (valid(def?.duration)) return def.duration;
+  return undefined;
+}
+
+/**
+ * Resolve an item's license mode: the item's own `license`, else `defaults.license`.
+ * Returns `undefined` when neither is set; callers decide the policy for that case. The schema
+ * annotates `"default": "open"` but no validator applies it, and this helper does not either:
+ * silently turning "unset" into "open" would grant access on a document that never said so.
+ */
+export function LicenseForItem(def: ScalarDefaultsLike, item: ScalarItemLike) {
+  const valid = (v: unknown): v is string => typeof v === 'string' && v.length > 0;
+  if (valid(item?.license)) return item.license;
+  if (valid(def?.license)) return def.license;
+  return undefined;
 }

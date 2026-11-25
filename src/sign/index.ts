@@ -17,6 +17,26 @@ export const RoleFeed = 'feed';
 export const RoleAgent = 'agent';
 export const RoleInstitution = 'institution';
 export const RoleLicensor = 'licensor';
+/** Channel signatures only (channels extension); playlists do not allow this role. */
+export const RolePublisher = 'publisher';
+
+const playlistRoles: ReadonlySet<string> = new Set([
+  RoleCurator,
+  RoleFeed,
+  RoleAgent,
+  RoleInstitution,
+  RoleLicensor,
+]);
+const channelRoles: ReadonlySet<string> = new Set([...playlistRoles, RolePublisher]);
+
+/** Which schema's `signatures[].role` enum the signature is for. Defaults to `'playlist'`. */
+export type SignDocumentKind = 'playlist' | 'channel';
+
+function assertRole(role: string, kind: SignDocumentKind | undefined) {
+  const allowed = kind === 'channel' ? channelRoles : playlistRoles;
+  if (!allowed.has(role))
+    throw new Error(`dp1: role "${role}" is not allowed for a ${kind ?? 'playlist'} signature`);
+}
 
 export const AlgEd25519 = 'ed25519';
 export const AlgEIP191 = 'eip191';
@@ -55,7 +75,14 @@ export function SupportedAlgorithms() {
   return [...verifiers.keys()].sort();
 }
 
-export function SignMulti(raw: Buffer | string, signer: Signer, role: string, ts: string) {
+export function SignMulti(
+  raw: Buffer | string,
+  signer: Signer,
+  role: string,
+  ts: string,
+  kind?: SignDocumentKind
+) {
+  assertRole(role, kind);
   const digest = signingDigest(raw);
   const payload_hash = payloadHashString(raw);
   const [kid, sigBytes] = signer.sign(digest);
@@ -297,9 +324,10 @@ export async function SignMultiEd25519(
   privateKey: PrivateKeyLike | { type?: string } | null | undefined,
   role: string,
   ts: string,
-  kid?: string
+  kid?: string,
+  kind?: SignDocumentKind
 ) {
-  const sig = SignMulti(raw, NewEd25519Signer(privateKey), role, ts);
+  const sig = SignMulti(raw, NewEd25519Signer(privateKey), role, ts, kind);
   if (kid && kid !== sig.kid) {
     throw new Error('dp1: kid override must match the Ed25519 signing key');
   }
@@ -312,9 +340,10 @@ export async function SignMultiEIP191(
   privateKey: Uint8Array | Buffer | string,
   chainID: number,
   role: string,
-  ts: string
+  ts: string,
+  kind?: SignDocumentKind
 ) {
-  return SignMulti(raw, NewEthereumSigner(privateKey, chainID), role, ts);
+  return SignMulti(raw, NewEthereumSigner(privateKey, chainID), role, ts, kind);
 }
 
 export function SignLegacyEd25519(
@@ -424,23 +453,69 @@ function encodeBase58btc(input: Buffer | Uint8Array) {
   return `${'1'.repeat(leadingZeros)}${out}`;
 }
 
-export function VerifyMultiSignaturesJSON(raw: Buffer | string) {
+/**
+ * Optional trust policy for `VerifyMultiSignaturesJSON` and the `Verify*Signatures` wrappers.
+ * Without it the functions only prove integrity: every signature matches the `kid` embedded in
+ * itself, so anyone can mint a key and re-sign a document. A player passes `trustedKids` to
+ * also establish who signed. A signature's `role` and `ts` are not covered by what it signs
+ * (the digest is over the document body alone), so neither is a trust signal: there is
+ * deliberately no role policy here.
+ */
+export type VerifyPolicy = {
+  /** When set, at least one signature from a listed `kid` must verify. Signatures from other kids still have to verify cryptographically but are not counted as trusted, so they neither fail nor satisfy the policy. */
+  trustedKids?: Iterable<string>;
+  /** Reject signatures whose `ts` is later than `now` plus `maxClockSkewMs`. */
+  rejectFutureTimestamps?: boolean;
+  /** Clock for `rejectFutureTimestamps`; defaults to the current time. */
+  now?: Date;
+  /** Tolerated clock skew in milliseconds; defaults to 5 minutes (§7.1.1). */
+  maxClockSkewMs?: number;
+};
+
+/** Canonical form of a `kid` for trust comparison: `did:pkh:eip155` addresses are EIP-55 checksummed. */
+function canonicalKid(kid: unknown) {
+  const k = String(kid);
+  if (!k.toLowerCase().startsWith(didPkhPrefix)) return k;
+  try {
+    const [addr, chainID] = EthereumAddressFromDIDPKH(k);
+    return EthereumAddressToDIDPKH(addr, chainID);
+  } catch {
+    return k;
+  }
+}
+
+export function VerifyMultiSignaturesJSON(raw: Buffer | string, policy?: VerifyPolicy) {
   const envelope = JSON.parse(Buffer.isBuffer(raw) ? raw.toString('utf8') : String(raw));
   if (!Array.isArray(envelope.signatures) || envelope.signatures.length === 0)
     throw ErrNoSignatures;
+  const trusted = policy?.trustedKids ? new Set([...policy.trustedKids].map(canonicalKid)) : null;
   const failed = [];
+  let trustedVerified = 0;
   for (const sig of envelope.signatures) {
     try {
       VerifyMultiSignature(raw, sig);
+      // A valid signature from an unlisted kid is simply not counted: it neither fails the
+      // document nor satisfies the policy.
+      if (trusted && !trusted.has(canonicalKid(sig.kid))) continue;
+      trustedVerified++;
+      if (policy?.rejectFutureTimestamps) {
+        const ts = Date.parse(sig.ts);
+        const limit = (policy.now ?? new Date()).getTime() + (policy.maxClockSkewMs ?? 300_000);
+        if (!Number.isFinite(ts) || ts > limit)
+          throw new Error('dp1: signature ts is in the future');
+      }
     } catch {
       failed.push(sig);
     }
   }
+  if (failed.length === 0 && trusted && trustedVerified === 0) {
+    return [false, null, new Error('dp1: no verified signature from a trusted kid')] as const;
+  }
   return [failed.length === 0, failed.length ? failed : null, null] as const;
 }
 
-export function VerifyPlaylistSignatures(raw: Buffer | string) {
-  return VerifyMultiSignaturesJSON(raw);
+export function VerifyPlaylistSignatures(raw: Buffer | string, policy?: VerifyPolicy) {
+  return VerifyMultiSignaturesJSON(raw, policy);
 }
 /**
  * @deprecated The DP-1 spec removed the Playlist-Group (Exhibition) object
@@ -452,8 +527,8 @@ export function VerifyPlaylistSignatures(raw: Buffer | string) {
 export function VerifyPlaylistGroupSignatures(raw: Buffer | string) {
   return VerifyMultiSignaturesJSON(raw);
 }
-export function VerifyChannelSignatures(raw: Buffer | string) {
-  return VerifyMultiSignaturesJSON(raw);
+export function VerifyChannelSignatures(raw: Buffer | string, policy?: VerifyPolicy) {
+  return VerifyMultiSignaturesJSON(raw, policy);
 }
 
 export const signDP1Playlist = SignLegacyEd25519;

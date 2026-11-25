@@ -1,6 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { DisplayForItem } from '../../src/merge/index.js';
+import { DisplayForItem, DurationForItem, LicenseForItem } from '../../src/merge/index.js';
 
 test('DisplayForItem_empty', () => {
   const [display, err] = DisplayForItem(null, null, null);
@@ -164,7 +164,7 @@ test('applyDisplayJSON_refInteractionClearsKeyboardWithEmptyArray', () => {
   assert.deepEqual(display, { interaction: { keyboard: ['KeyA'] } });
 });
 
-test('DisplayForItem_itemMouseFalseDoesNotClearRefFlags', () => {
+test('DisplayForItem_itemMouseFalseOverridesRefFlag', () => {
   const [display] = DisplayForItem(
     null,
     {
@@ -181,7 +181,7 @@ test('DisplayForItem_itemMouseFalseDoesNotClearRefFlags', () => {
     }
   );
   assert.deepEqual(display, {
-    interaction: { mouse: { scroll: true, drag: true } },
+    interaction: { mouse: { click: false, scroll: true, drag: true } },
   });
 });
 
@@ -219,4 +219,40 @@ test('DisplayForItem_defaultsOnlyIsolatesKeyboard', () => {
   assert.ok(display);
   display.interaction?.keyboard?.push('KeyB');
   assert.deepEqual(def.display.interaction.keyboard, ['KeyA']);
+});
+
+test('DisplayForItem_itemFalseOverridesDefaultTrue', () => {
+  const [display] = DisplayForItem(
+    { display: { interaction: { mouse: { click: true, hover: true }, keyboard: ['Space'] } } },
+    null,
+    { display: { interaction: { mouse: { click: false }, keyboard: [] } } }
+  );
+  assert.deepEqual(display, {
+    interaction: { mouse: { click: false, hover: true }, keyboard: ['Space'] },
+  });
+});
+
+test('DisplayForItem_overrideFalseOverridesRefTrue', () => {
+  const [display] = DisplayForItem(
+    null,
+    { controls: { display: { interaction: { mouse: { drag: true, scroll: true } } } } },
+    { override: { display: { interaction: { mouse: { drag: false } } } } }
+  );
+  assert.deepEqual(display, { interaction: { mouse: { drag: false, scroll: true } } });
+});
+
+test('DurationForItem_itemThenDefaults', () => {
+  assert.equal(DurationForItem({ duration: 10 }, { duration: 3 }), 3);
+  assert.equal(DurationForItem({ duration: 10 }, {}), 10);
+  assert.equal(DurationForItem({ duration: 10 }, { duration: 0 }), 0);
+  assert.equal(DurationForItem({}, {}), undefined);
+  assert.equal(DurationForItem(null, null), undefined);
+  assert.equal(DurationForItem({ duration: -1 }, { duration: 'x' }), undefined);
+});
+
+test('LicenseForItem_itemThenDefaults', () => {
+  assert.equal(LicenseForItem({ license: 'open' }, { license: 'token' }), 'token');
+  assert.equal(LicenseForItem({ license: 'open' }, {}), 'open');
+  assert.equal(LicenseForItem({}, {}), undefined);
+  assert.equal(LicenseForItem(undefined, undefined), undefined);
 });

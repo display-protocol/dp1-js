@@ -1,6 +1,8 @@
 import { lookup as dnsLookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { Buffer } from 'node:buffer';
+import * as validate from '../validate/index.js';
+import type { RequireSignaturesOptions } from '../validate/index.js';
 import { PlaylistItemWithPlaylistsAndContentRatingExtensions } from '../validate/index.js';
 
 export {
@@ -71,18 +73,15 @@ type DynamicQueryLike =
   | null
   | undefined;
 
-export function parsePlaylist(doc: PlaylistLike) {
+/**
+ * Validate an already-parsed playlist against the published core DP-1 schema and return it.
+ * Throws a validation error (with `details`) for any document the schema rejects.
+ * Like `validate.Playlist`, signatures are required unless `{ requireSignatures: false }`.
+ */
+export function parsePlaylist(doc: PlaylistLike, options?: RequireSignaturesOptions) {
   if (!doc || typeof doc !== 'object' || Array.isArray(doc))
     throw new Error('dp1: playlist must be an object');
-  if (typeof doc.dpVersion !== 'string')
-    throw new Error('dp1: playlist.dpVersion must be a string');
-  if (typeof doc.title !== 'string') throw new Error('dp1: playlist.title must be a string');
-  if (!Array.isArray(doc.items)) throw new Error('dp1: playlist.items must be an array');
-  for (const item of doc.items) {
-    if (!item || typeof item !== 'object') throw new Error('dp1: playlist item must be an object');
-    if (typeof item.source !== 'string')
-      throw new Error('dp1: playlist item.source must be a string');
-  }
+  validate.Playlist(doc, options);
   return doc;
 }
 

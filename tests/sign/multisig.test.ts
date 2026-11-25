@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { generateKeyPairSync } from 'node:crypto';
 import {
   SignMultiEd25519,
+  SignMultiEIP191,
   VerifyMultiEd25519,
   VerifyMultiSignaturesJSON,
   VerifyPlaylistSignatures,
@@ -129,4 +130,108 @@ test('VerifyMultiWrongHash', async () => {
   const sig = await SignMultiEd25519(raw, privateKey, 'feed', '2025-01-01T00:00:00Z');
   sig.payload_hash = 'sha256:' + '00' + sig.payload_hash.slice(9);
   assert.throws(() => VerifyMultiEd25519(raw, sig));
+});
+
+// R7: trust policy and role enum
+
+async function signedBy(role: string, ts = '2025-01-01T00:00:00Z') {
+  const { privateKey } = generateKeyPairSync('ed25519');
+  const body = { title: 'x' };
+  const sig = await SignMultiEd25519(Buffer.from(JSON.stringify(body)), privateKey, role, ts);
+  return { raw: Buffer.from(JSON.stringify({ ...body, signatures: [sig] })), sig };
+}
+
+test('VerifyMultiSignaturesJSON_withoutPolicyOnlyProvesIntegrity', async () => {
+  const { raw } = await signedBy('agent');
+  assert.equal(VerifyMultiSignaturesJSON(raw)[0], true);
+});
+
+test('VerifyMultiSignaturesJSON_trustedKids', async () => {
+  const { raw, sig } = await signedBy('feed');
+  assert.equal(VerifyMultiSignaturesJSON(raw, { trustedKids: [sig.kid] })[0], true);
+  const [ok, failed, err] = VerifyMultiSignaturesJSON(raw, { trustedKids: ['did:key:other'] });
+  assert.equal(ok, false);
+  assert.equal(failed, null);
+  assert.match(String(err?.message), /trusted kid/);
+});
+
+test('VerifyMultiSignaturesJSON_rejectsFutureTimestamps', async () => {
+  const { raw } = await signedBy('feed', '2030-01-01T00:00:00Z');
+  const now = new Date('2025-01-01T00:00:00Z');
+  assert.equal(VerifyMultiSignaturesJSON(raw)[0], true);
+  assert.equal(VerifyMultiSignaturesJSON(raw, { rejectFutureTimestamps: true, now })[0], false);
+});
+
+test('SignMulti_rejectsUnknownRoleAndAcceptsPublisher', async () => {
+  const { privateKey } = generateKeyPairSync('ed25519');
+  const raw = Buffer.from('{"a":1}');
+  await assert.rejects(
+    async () => SignMultiEd25519(raw, privateKey, 'admin', '2025-01-01T00:00:00Z'),
+    /not allowed for a playlist/
+  );
+  // `publisher` is a channel-only role: the playlist schema's role enum does not allow it
+  await assert.rejects(
+    async () => SignMultiEd25519(raw, privateKey, 'publisher', '2025-01-01T00:00:00Z'),
+    /not allowed for a playlist/
+  );
+  assert.equal(
+    (
+      await SignMultiEd25519(
+        raw,
+        privateKey,
+        'publisher',
+        '2025-01-01T00:00:00Z',
+        undefined,
+        'channel'
+      )
+    ).role,
+    'publisher'
+  );
+});
+
+test('VerifyMultiSignaturesJSON_untrustedCoSignerDoesNotFailTrustedDocument', async () => {
+  const { privateKey: k1 } = generateKeyPairSync('ed25519');
+  const { privateKey: k2 } = generateKeyPairSync('ed25519');
+  const body = Buffer.from(JSON.stringify({ title: 'x' }));
+  const feed = await SignMultiEd25519(body, k1, 'feed', '2025-01-01T00:00:00Z');
+  const agent = await SignMultiEd25519(body, k2, 'agent', '2025-01-01T00:00:00Z');
+  const raw = Buffer.from(JSON.stringify({ title: 'x', signatures: [feed, agent] }));
+  const policy = { trustedKids: [feed.kid] };
+  assert.equal(VerifyMultiSignaturesJSON(raw, policy)[0], true);
+  // only an untrusted signer: valid, but nothing trusted verified
+  const [ok, , err] = VerifyMultiSignaturesJSON(raw, { trustedKids: ['did:key:other'] });
+  assert.equal(ok, false);
+  assert.match(String(err?.message), /trusted kid/);
+  // a tampered signature still fails the document
+  const bad = Buffer.from(
+    JSON.stringify({ title: 'x', signatures: [feed, { ...agent, sig: feed.sig }] })
+  );
+  assert.equal(VerifyMultiSignaturesJSON(bad, policy)[0], false);
+});
+
+test('VerifyMultiSignaturesJSON_untrustedFutureCoSignerIsIgnored', async () => {
+  const { privateKey: k1 } = generateKeyPairSync('ed25519');
+  const { privateKey: k2 } = generateKeyPairSync('ed25519');
+  const body = Buffer.from(JSON.stringify({ title: 'x' }));
+  const feed = await SignMultiEd25519(body, k1, 'feed', '2025-01-01T00:00:00Z');
+  const other = await SignMultiEd25519(body, k2, 'agent', '2099-01-01T00:00:00Z');
+  const raw = Buffer.from(JSON.stringify({ title: 'x', signatures: [feed, other] }));
+  const [ok] = VerifyMultiSignaturesJSON(raw, {
+    trustedKids: [feed.kid],
+    rejectFutureTimestamps: true,
+    now: new Date('2025-06-01T00:00:00Z'),
+  });
+  assert.equal(ok, true);
+});
+
+test('VerifyMultiSignaturesJSON_trustedKidsMatchDidPkhCaseInsensitively', async () => {
+  const key = Buffer.alloc(32, 0x11);
+  const body = Buffer.from(JSON.stringify({ title: 'x' }));
+  const sig = await SignMultiEIP191(body, key, 1, 'feed', '2025-01-01T00:00:00Z');
+  const raw = Buffer.from(JSON.stringify({ title: 'x', signatures: [sig] }));
+  const lower =
+    sig.kid.slice(0, 'did:pkh:eip155:1:'.length) +
+    sig.kid.slice('did:pkh:eip155:1:'.length).toLowerCase();
+  assert.equal(VerifyMultiSignaturesJSON(raw, { trustedKids: [lower] })[0], true);
+  assert.equal(VerifyMultiSignaturesJSON(raw, { trustedKids: [sig.kid] })[0], true);
 });

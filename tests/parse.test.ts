@@ -2,6 +2,8 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {
   parseDP1Playlist,
+  parseChannel,
+  parseRefManifest,
   ParseAndValidatePlaylist,
   ParseAndValidatePlaylistWithPlaylistsExtension,
   ParseAndValidatePlaylistGroup,
@@ -21,27 +23,43 @@ function isCode(code: string) {
 }
 
 test('ParseAndValidatePlaylist_legacySigned', () => {
-  const res = parseDP1Playlist({
-    dpVersion: '1.0.0',
-    title: 'x',
-    items: [{ source: 'https://example.com' }],
-  });
+  const res = parseDP1Playlist(
+    {
+      dpVersion: '1.0.0',
+      title: 'x',
+      items: [{ source: 'https://example.com' }],
+    },
+    { requireSignatures: false }
+  );
   assert.equal(res.error, null);
 });
 
 test('parseDP1Playlist_returnsDetailsOnFailure', () => {
-  const res = parseDP1Playlist({
-    dpVersion: '1.0.0',
-    title: 'x',
-    items: [{}],
-  });
+  const res = parseDP1Playlist(
+    {
+      dpVersion: '1.0.0',
+      title: 'x',
+      items: [{}],
+    },
+    { requireSignatures: false }
+  );
   assert.equal(res.playlist, null);
-  assert.equal(res.error?.message.startsWith('dp1: playlist item.source must be a string'), true);
-  assert.equal(res.error?.details.length, 1);
-  assert.deepEqual(res.error?.details[0], {
-    path: '/',
-    message: 'dp1: playlist item.source must be a string',
-  });
+  assert.equal(res.error?.message, 'dp1: validation failed');
+  assert.ok((res.error?.details.length ?? 0) > 0);
+});
+
+// R3: the shallow hand-written parse* helpers used to accept documents the published schema rejects.
+test('parse helpers validate against the published schema', () => {
+  const unsigned = { dpVersion: '1.1.0', title: 'x', items: [{ source: 'https://a' }] };
+  // missing signature(s): rejected by default, accepted only when explicitly opted out
+  assert.ok(parseDP1Playlist(unsigned).error);
+  assert.equal(parseDP1Playlist(unsigned, { requireSignatures: false }).error, null);
+  // bad dpVersion pattern passes the old string check but not the schema
+  assert.ok(
+    parseDP1Playlist({ ...unsigned, dpVersion: 'one' }, { requireSignatures: false }).error
+  );
+  assert.throws(() => parseChannel({ title: 't' }));
+  assert.throws(() => parseRefManifest({ refVersion: 'x', id: 'r', created: 'c', locale: 'en' }));
 });
 
 test('ParseAndValidatePlaylist_schemaRejectsInvalidDoc', () => {

@@ -16,3 +16,7 @@ test('Overlay_JSONRoundTrip', () => {
   assert.deepEqual(parsePlaylistsExtension(o), o);
   assert.deepEqual(JSON.parse(JSON.stringify(new PlaylistsExtensionDocument(o))), o);
 });
+
+test('parsePlaylistsExtension_rejectsSchemaViolation', () => {
+  assert.throws(() => parsePlaylistsExtension({ dynamicQuery: 'not-an-object' }));
+});
