@@ -177,7 +177,7 @@ test('SignMulti_rejectsUnknownRoleAndAcceptsPublisher', async () => {
   const raw = Buffer.from('{"a":1}');
   await assert.rejects(
     async () => SignMultiEd25519(raw, privateKey, 'admin', '2025-01-01T00:00:00Z'),
-    /unknown signature role/
+    /not allowed for a playlist/
   );
   // `publisher` is a channel-only role: the playlist schema's role enum does not allow it
   await assert.rejects(
