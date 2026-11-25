@@ -460,7 +460,7 @@ function encodeBase58btc(input: Buffer | Uint8Array) {
  * establish who signed (DP-1 §7.1.1).
  */
 export type VerifyPolicy = {
-  /** When set, only signatures whose `kid` is listed count as trusted; others still must verify. */
+  /** When set, at least one signature from a listed `kid` must verify. Signatures from other kids still have to verify cryptographically but are not counted as trusted, so they neither fail nor satisfy the policy. */
   trustedKids?: Iterable<string>;
   /**
    * At least one signature that verified, from a trusted `kid`, must carry one of these roles.
@@ -487,6 +487,7 @@ export function VerifyMultiSignaturesJSON(raw: Buffer | string, policy?: VerifyP
   const trusted = policy?.trustedKids ? new Set(policy.trustedKids) : null;
   const failed = [];
   let roleSatisfied = !policy?.requireRoles?.length;
+  let trustedVerified = 0;
   for (const sig of envelope.signatures) {
     try {
       VerifyMultiSignature(raw, sig);
@@ -496,11 +497,17 @@ export function VerifyMultiSignaturesJSON(raw: Buffer | string, policy?: VerifyP
         if (!Number.isFinite(ts) || ts > limit)
           throw new Error('dp1: signature ts is in the future');
       }
-      if (trusted && !trusted.has(sig.kid)) throw new Error('dp1: signature kid is not trusted');
+      // A valid signature from an unlisted kid is simply not counted: it neither fails the
+      // document nor satisfies the policy.
+      if (trusted && !trusted.has(sig.kid)) continue;
+      trustedVerified++;
       if (policy?.requireRoles?.includes(sig.role)) roleSatisfied = true;
     } catch {
       failed.push(sig);
     }
+  }
+  if (failed.length === 0 && trusted && trustedVerified === 0) {
+    return [false, null, new Error('dp1: no verified signature from a trusted kid')] as const;
   }
   if (failed.length === 0 && !roleSatisfied) {
     return [

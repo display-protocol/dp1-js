@@ -7,3 +7,7 @@ test('Entity_JSONRoundTrip', () => {
   assert.deepEqual(parseEntity(e), e);
   assert.deepEqual(JSON.parse(JSON.stringify(new EntityDocument(e))), e);
 });
+
+test('parseEntity_rejectsSchemaViolation', () => {
+  assert.throws(() => parseEntity({ key: 'did:key:z' }));
+});

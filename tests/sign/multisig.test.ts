@@ -172,9 +172,10 @@ test('VerifyMultiSignaturesJSON_requireRoles', async () => {
 test('VerifyMultiSignaturesJSON_trustedKids', async () => {
   const { raw, sig } = await signedBy('feed');
   assert.equal(VerifyMultiSignaturesJSON(raw, { trustedKids: [sig.kid] })[0], true);
-  const [ok, failed] = VerifyMultiSignaturesJSON(raw, { trustedKids: ['did:key:other'] });
+  const [ok, failed, err] = VerifyMultiSignaturesJSON(raw, { trustedKids: ['did:key:other'] });
   assert.equal(ok, false);
-  assert.equal(failed?.length, 1);
+  assert.equal(failed, null);
+  assert.match(String(err?.message), /trusted kid/);
 });
 
 test('VerifyMultiSignaturesJSON_rejectsFutureTimestamps', async () => {
@@ -209,4 +210,24 @@ test('SignMulti_rejectsUnknownRoleAndAcceptsPublisher', async () => {
     ).role,
     'publisher'
   );
+});
+
+test('VerifyMultiSignaturesJSON_untrustedCoSignerDoesNotFailTrustedDocument', async () => {
+  const { privateKey: k1 } = generateKeyPairSync('ed25519');
+  const { privateKey: k2 } = generateKeyPairSync('ed25519');
+  const body = Buffer.from(JSON.stringify({ title: 'x' }));
+  const feed = await SignMultiEd25519(body, k1, 'feed', '2025-01-01T00:00:00Z');
+  const agent = await SignMultiEd25519(body, k2, 'agent', '2025-01-01T00:00:00Z');
+  const raw = Buffer.from(JSON.stringify({ title: 'x', signatures: [feed, agent] }));
+  const policy = { trustedKids: [feed.kid], requireRoles: ['feed', 'curator'] };
+  assert.equal(VerifyMultiSignaturesJSON(raw, policy)[0], true);
+  // only an untrusted signer: valid, but nothing trusted verified
+  const [ok, , err] = VerifyMultiSignaturesJSON(raw, { trustedKids: ['did:key:other'] });
+  assert.equal(ok, false);
+  assert.match(String(err?.message), /trusted kid/);
+  // a tampered signature still fails the document
+  const bad = Buffer.from(
+    JSON.stringify({ title: 'x', signatures: [feed, { ...agent, sig: feed.sig }] })
+  );
+  assert.equal(VerifyMultiSignaturesJSON(bad, policy)[0], false);
 });
