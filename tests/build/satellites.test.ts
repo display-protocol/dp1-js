@@ -99,7 +99,7 @@ test('satellites[] round-trips losslessly through JSON and the composed playlist
       },
     ],
   };
-  assert.deepEqual(parsePlaylist(p), p);
+  assert.deepEqual(parsePlaylist(p, { requireSignatures: false }), p);
   assert.deepEqual(JSON.parse(JSON.stringify(new PlaylistDocument(p))), p);
   ValidatePlaylistWithPlaylistsExtension(p, { requireSignatures: false });
 });

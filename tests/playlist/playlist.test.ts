@@ -17,8 +17,7 @@ test('Playlist_JSONRoundTrip', () => {
         note: { text: 'Item card' },
       },
     ],
-    signatures: [],
   };
-  assert.deepEqual(parsePlaylist(p), p);
+  assert.deepEqual(parsePlaylist(p, { requireSignatures: false }), p);
   assert.deepEqual(JSON.parse(JSON.stringify(new PlaylistDocument(p))), p);
 });

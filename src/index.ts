@@ -12,6 +12,7 @@ export {
 } from './errors.js';
 export { transform as JcsTransform } from './jcs/index.js';
 import * as validate from './validate/index.js';
+import type { RequireSignaturesOptions } from './validate/index.js';
 import { parsePlaylist } from './playlist/index.js';
 export * from './sign/index.js';
 export {
@@ -194,9 +195,12 @@ function collectErrorDetails(err: unknown) {
   return message ? [{ path: '/', message }] : [];
 }
 
-export function parseDP1Playlist(input: Parameters<typeof parsePlaylist>[0]) {
+export function parseDP1Playlist(
+  input: Parameters<typeof parsePlaylist>[0],
+  options?: RequireSignaturesOptions
+) {
   try {
-    const playlist = parsePlaylist(input);
+    const playlist = parsePlaylist(input, options);
     return { playlist, error: null };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

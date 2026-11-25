@@ -174,7 +174,9 @@ Timezone rules (Playlist Extension §3.5.2):
 
 ## API Notes
 
-- `parseDP1Playlist(json)` returns a `{ playlist, error }` result for already-parsed JSON input (shape-only; not full schema).
+- `parseDP1Playlist(json, options?)` returns a `{ playlist, error }` result for already-parsed JSON input. It validates against the published core schema (same `requireSignatures` option and default as `ValidatePlaylist`). `parsePlaylist`, `parseChannel` and `parseRefManifest` validate the same way and throw on schema violations. To parse unsigned drafts pass `{ requireSignatures: false }`.
+- `DurationForItem(defaults, item)` and `LicenseForItem(defaults, item)` resolve an item's `duration` / `license` with fallback to `defaults` (spec §2 inheritance); `DisplayForItem` lets an item or override set a mouse flag to `false` over an inherited `true`.
+- `VerifyMultiSignaturesJSON(raw, policy?)` (and the `VerifyPlaylistSignatures` / `VerifyChannelSignatures` wrappers) prove integrity only unless a `VerifyPolicy` is passed: `trustedKids`, `requireRoles` (`['feed', 'curator']` for §7.1.1) and `rejectFutureTimestamps`. A document that passes without a policy may have been re-signed by anyone. `ecdsa-secp256k1` and `ecdsa-p256` signatures have no verifier and fail closed with `ErrUnsupportedAlg`; `SignMulti*` rejects roles outside the spec enum (`RolePublisher` is channel-only).
 - `ValidatePlaylist(data, options?)` runs AJV against the core playlist schema. `requireSignatures` defaults to `true`; set `false` for unsigned drafts. Accepts `Buffer`, JSON string, or a parsed object.
 - `ValidateChannel` and `ValidatePlaylistWithPlaylistsExtension` use the same `requireSignatures` option, as does the deprecated `ValidatePlaylistGroup`.
 - Leaf helpers such as `ValidateNote`, `ValidateEntity`, `ValidateDisplayPrefs`, `ValidateProvenanceBlock`, `ValidateLocalizedMetadata`, and `ValidateRefManifest` run AJV against the matching schema / `$defs` (builders use these on `build()`).

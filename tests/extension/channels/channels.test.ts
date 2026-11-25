@@ -11,5 +11,5 @@ test('Channel_JSONRoundTrip', () => {
     created: '2025-01-01T00:00:00Z',
     playlists: ['https://a'],
   };
-  assert.deepEqual(parseChannel(c), c);
+  assert.deepEqual(parseChannel(c, { requireSignatures: false }), c);
 });
