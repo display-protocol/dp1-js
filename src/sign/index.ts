@@ -20,14 +20,23 @@ export const RoleLicensor = 'licensor';
 /** Channel signatures only (channels extension); playlists do not allow this role. */
 export const RolePublisher = 'publisher';
 
-const knownRoles: ReadonlySet<string> = new Set([
+const playlistRoles: ReadonlySet<string> = new Set([
   RoleCurator,
   RoleFeed,
   RoleAgent,
   RoleInstitution,
   RoleLicensor,
-  RolePublisher,
 ]);
+const channelRoles: ReadonlySet<string> = new Set([...playlistRoles, RolePublisher]);
+
+/** Which schema's `signatures[].role` enum the signature is for. Defaults to `'playlist'`. */
+export type SignDocumentKind = 'playlist' | 'channel';
+
+function assertRole(role: string, kind: SignDocumentKind | undefined) {
+  const allowed = kind === 'channel' ? channelRoles : playlistRoles;
+  if (!allowed.has(role))
+    throw new Error(`dp1: role "${role}" is not allowed for a ${kind ?? 'playlist'} signature`);
+}
 
 export const AlgEd25519 = 'ed25519';
 export const AlgEIP191 = 'eip191';
@@ -66,8 +75,14 @@ export function SupportedAlgorithms() {
   return [...verifiers.keys()].sort();
 }
 
-export function SignMulti(raw: Buffer | string, signer: Signer, role: string, ts: string) {
-  if (!knownRoles.has(role)) throw new Error(`dp1: unknown signature role "${role}"`);
+export function SignMulti(
+  raw: Buffer | string,
+  signer: Signer,
+  role: string,
+  ts: string,
+  kind?: SignDocumentKind
+) {
+  assertRole(role, kind);
   const digest = signingDigest(raw);
   const payload_hash = payloadHashString(raw);
   const [kid, sigBytes] = signer.sign(digest);
@@ -309,9 +324,10 @@ export async function SignMultiEd25519(
   privateKey: PrivateKeyLike | { type?: string } | null | undefined,
   role: string,
   ts: string,
-  kid?: string
+  kid?: string,
+  kind?: SignDocumentKind
 ) {
-  const sig = SignMulti(raw, NewEd25519Signer(privateKey), role, ts);
+  const sig = SignMulti(raw, NewEd25519Signer(privateKey), role, ts, kind);
   if (kid && kid !== sig.kid) {
     throw new Error('dp1: kid override must match the Ed25519 signing key');
   }
@@ -324,9 +340,10 @@ export async function SignMultiEIP191(
   privateKey: Uint8Array | Buffer | string,
   chainID: number,
   role: string,
-  ts: string
+  ts: string,
+  kind?: SignDocumentKind
 ) {
-  return SignMulti(raw, NewEthereumSigner(privateKey, chainID), role, ts);
+  return SignMulti(raw, NewEthereumSigner(privateKey, chainID), role, ts, kind);
 }
 
 export function SignLegacyEd25519(

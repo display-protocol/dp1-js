@@ -179,8 +179,22 @@ test('SignMulti_rejectsUnknownRoleAndAcceptsPublisher', async () => {
     async () => SignMultiEd25519(raw, privateKey, 'admin', '2025-01-01T00:00:00Z'),
     /unknown signature role/
   );
+  // `publisher` is a channel-only role: the playlist schema's role enum does not allow it
+  await assert.rejects(
+    async () => SignMultiEd25519(raw, privateKey, 'publisher', '2025-01-01T00:00:00Z'),
+    /not allowed for a playlist/
+  );
   assert.equal(
-    (await SignMultiEd25519(raw, privateKey, 'publisher', '2025-01-01T00:00:00Z')).role,
+    (
+      await SignMultiEd25519(
+        raw,
+        privateKey,
+        'publisher',
+        '2025-01-01T00:00:00Z',
+        undefined,
+        'channel'
+      )
+    ).role,
     'publisher'
   );
 });
