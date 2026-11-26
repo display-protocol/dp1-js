@@ -12,6 +12,8 @@ All notable changes to this project are documented here.
   `console.warn`) instead of failing the whole batch.
 - `DisplayForItem`: a ref manifest's `interaction.mouse` merges flag by flag instead of replacing
   the whole object.
+- `DisplayForItem`: an explicit `keyboard: []` in a ref manifest, override or item replaces the
+  inherited list instead of being ignored.
 
 ## 2.5.1 — 2026-11-09
 

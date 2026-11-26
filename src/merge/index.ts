@@ -82,10 +82,9 @@ function overlayDisplay(dst: DisplayPrefs, src: DisplayPrefs) {
   if (src.imageRendering) dst.imageRendering = src.imageRendering;
   if (src.interaction) {
     if (!dst.interaction) dst.interaction = {};
-    if (src.interaction.keyboard !== undefined) {
-      if (src.interaction.keyboard.length > 0) {
-        dst.interaction.keyboard = [...src.interaction.keyboard];
-      }
+    // An empty list is a value too ("no keys allowed") and replaces the inherited one.
+    if (src.interaction.keyboard) {
+      dst.interaction.keyboard = [...src.interaction.keyboard];
     }
     if (src.interaction.mouse) {
       if (!dst.interaction.mouse) dst.interaction.mouse = {};
@@ -147,9 +146,7 @@ function applyDisplayJSON(dst: DisplayPrefs, src: DisplayControls) {
     const parsed = parseRefInteraction(src.interaction);
     if (parsed !== 'invalid') {
       if (parsed.keyboard !== undefined) {
-        if (parsed.keyboard.length > 0) {
-          dst.interaction.keyboard = parsed.keyboard;
-        }
+        dst.interaction.keyboard = parsed.keyboard;
       }
       // Per flag, not per object: a manifest that names only `click` leaves the other flags as
       // the lower layer set them (ref-manifest §7, last write wins within the same key path).
