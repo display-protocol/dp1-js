@@ -1,4 +1,4 @@
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import {
@@ -14,6 +14,21 @@ import {
   ErrDynamicQueryItemInvalid,
   ErrDynamicQueryUnknownProfile,
 } from '../../src/playlist/index.js';
+
+/** The response holds one invalid item: it must be reported, and nothing returned. */
+async function assertItemsDiscarded(endpoint: string, name: string) {
+  const errors: Error[] = [];
+  const items = await PlaylistItemsFromDynamicQuery(
+    undefined,
+    { profile: ProfileHTTPSJSONV1, endpoint, responseMapping: { itemsPath: 'items' } },
+    {},
+    undefined,
+    { AllowInsecureHTTP: true, onInvalidItem: error => errors.push(error) }
+  );
+  assert.deepEqual(items, [], name);
+  assert.equal(errors.length, 1, name);
+  assert.ok(errors[0].message.startsWith(ErrDynamicQueryItemInvalid.message), name);
+}
 
 function startServer(handler: http.RequestListener) {
   const server = http.createServer();
@@ -174,22 +189,26 @@ test('dynamic query itemsPath and item validation cases are surfaced', async () 
     res.setHeader('content-type', 'application/json');
     res.end(JSON.stringify({ data: { rows: [{ title: 'Bad' }] } }));
   });
-  await assert.rejects(
-    () =>
-      PlaylistItemsFromDynamicQuery(
-        undefined,
-        {
-          profile: ProfileGraphQLV1,
-          endpoint: `http://127.0.0.1:${serverPort(itemSrv)}/gql`,
-          query: '',
-          responseMapping: { itemsPath: 'data.rows' },
-        },
-        {},
-        undefined,
-        { AllowInsecureHTTP: true }
-      ),
-    err => err instanceof Error && err.message.startsWith(ErrDynamicQueryItemInvalid.message)
+  const discarded: Array<[string, number]> = [];
+  const items = await PlaylistItemsFromDynamicQuery(
+    undefined,
+    {
+      profile: ProfileGraphQLV1,
+      endpoint: `http://127.0.0.1:${serverPort(itemSrv)}/gql`,
+      query: '',
+      responseMapping: { itemsPath: 'data.rows' },
+    },
+    {},
+    undefined,
+    {
+      AllowInsecureHTTP: true,
+      onInvalidItem: (error, index) => discarded.push([error.message, index]),
+    }
   );
+  assert.deepEqual(items, []);
+  assert.equal(discarded.length, 1);
+  assert.ok(discarded[0][0].startsWith(ErrDynamicQueryItemInvalid.message));
+  assert.equal(discarded[0][1], 0);
   await new Promise(resolve => itemSrv.close(resolve));
   await assert.rejects(
     () =>
@@ -421,21 +440,7 @@ test('dynamic query full branch coverage', async () => {
     res.setHeader('content-type', 'application/json');
     res.end(JSON.stringify({ items: [{ title: 'Bad' }] }));
   });
-  await assert.rejects(
-    () =>
-      PlaylistItemsFromDynamicQuery(
-        undefined,
-        {
-          profile: ProfileHTTPSJSONV1,
-          endpoint: `http://127.0.0.1:${serverPort(badSrv)}/json`,
-          responseMapping: { itemsPath: 'items' },
-        },
-        {},
-        undefined,
-        { AllowInsecureHTTP: true }
-      ),
-    err => err instanceof Error && err.message.includes('invalid playlist item')
-  );
+  await assertItemsDiscarded(`http://127.0.0.1:${serverPort(badSrv)}/json`, 'bad item');
 
   await Promise.all([
     new Promise(resolve => getSrv.close(resolve)),
@@ -483,7 +488,7 @@ test('dynamic query resolution passes ctx signal and keeps canonical items', asy
   assert.equal('Items' in out, false);
 });
 
-test('dynamic query keeps valid displayAt and rejects invalid displayAt', async () => {
+test('dynamic query keeps valid displayAt and discards invalid displayAt', async () => {
   const validSrv = await startServer((_req, res) => {
     res.setHeader('content-type', 'application/json');
     res.end(
@@ -542,31 +547,16 @@ test('dynamic query keeps valid displayAt and rejects invalid displayAt', async 
       res.setHeader('content-type', 'application/json');
       res.end(JSON.stringify(tc.body));
     });
-    await assert.rejects(
-      () =>
-        PlaylistItemsFromDynamicQuery(
-          undefined,
-          {
-            profile: ProfileHTTPSJSONV1,
-            endpoint: `http://127.0.0.1:${serverPort(srv)}/json`,
-            responseMapping: { itemsPath: 'items' },
-          },
-          {},
-          undefined,
-          { AllowInsecureHTTP: true }
-        ),
-      err => err instanceof Error && err.message.startsWith(ErrDynamicQueryItemInvalid.message),
-      `expected ErrDynamicQueryItemInvalid for ${tc.name}`
-    );
+    await assertItemsDiscarded(`http://127.0.0.1:${serverPort(srv)}/json`, tc.name);
     await new Promise(resolve => srv.close(resolve));
   }
 });
 
 // The single-item composed schema is what guards items arriving from an indexer, and it
 // omitted inlineManifest until display-protocol/dp1#46. Pin the end-to-end path, not just
-// the validator: an indexer that returns a malformed inline manifest must be rejected
-// before its item enters the playlist.
-test('dynamic query rejects an item whose inlineManifest is malformed', async () => {
+// the validator: an item with a malformed inline manifest must be discarded
+// before it enters the playlist.
+test('dynamic query discards an item whose inlineManifest is malformed', async () => {
   const manifest = {
     refVersion: '0.1.0',
     id: 'r',
@@ -594,22 +584,7 @@ test('dynamic query rejects an item whose inlineManifest is malformed', async ()
         })
       );
     });
-    await assert.rejects(
-      () =>
-        PlaylistItemsFromDynamicQuery(
-          undefined,
-          {
-            profile: ProfileHTTPSJSONV1,
-            endpoint: `http://127.0.0.1:${serverPort(srv)}/json`,
-            responseMapping: { itemsPath: 'items' },
-          },
-          {},
-          undefined,
-          { AllowInsecureHTTP: true }
-        ),
-      err => err instanceof Error && err.message.startsWith(ErrDynamicQueryItemInvalid.message),
-      `expected ErrDynamicQueryItemInvalid for ${tc.name}`
-    );
+    await assertItemsDiscarded(`http://127.0.0.1:${serverPort(srv)}/json`, tc.name);
     await new Promise(resolve => srv.close(resolve));
   }
 
@@ -636,4 +611,52 @@ test('dynamic query rejects an item whose inlineManifest is malformed', async ()
   assert.equal(items.length, 1);
   assert.equal((items[0] as { inlineManifest?: { locale?: string } }).inlineManifest?.locale, 'en');
   await new Promise(resolve => okSrv.close(resolve));
+});
+
+test('dynamic query discards invalid items and keeps the valid ones in order', async () => {
+  const client = {
+    fetch: async () =>
+      new Response(
+        JSON.stringify({
+          rows: [
+            { src: 'https://a' },
+            { title: 'no source' },
+            null,
+            'not-an-object',
+            { src: 'https://b' },
+          ],
+        })
+      ),
+  };
+  const dq = {
+    profile: ProfileHTTPSJSONV1,
+    endpoint: 'http://example.invalid/x',
+    responseMapping: { itemsPath: 'rows', itemMap: { source: 'src' } },
+  };
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  try {
+    const out = (await ResolveDynamicQuery(
+      { items: [{ source: 'https://static' }], dynamicQuery: dq },
+      undefined,
+      {},
+      client,
+      { AllowInsecureHTTP: true }
+    )) as { items: unknown[] };
+    assert.deepEqual(out.items, [
+      { source: 'https://static' },
+      { source: 'https://a' },
+      { source: 'https://b' },
+    ]);
+    // Without onInvalidItem, every discarded item is still logged.
+    assert.deepEqual(
+      warn.mock.calls.map(([message]) => String(message).split(':', 2)[1]),
+      [
+        ' discarded dynamicQuery item 1',
+        ' discarded dynamicQuery item 2',
+        ' discarded dynamicQuery item 3',
+      ]
+    );
+  } finally {
+    warn.mockRestore();
+  }
 });

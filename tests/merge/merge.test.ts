@@ -97,7 +97,7 @@ test('DisplayForItem_fullOverlay', () => {
     autoplay: true,
     interaction: {
       keyboard: ['Enter'],
-      mouse: { scroll: true, drag: true, hover: true },
+      mouse: { click: true, scroll: true, drag: true, hover: true },
     },
     userOverrides: { scaling: true, margin: true },
     margin: '5%',
@@ -134,7 +134,7 @@ test('applyDisplayJSON_refInteractionKeepsKeyboardWhenMouseNull', () => {
   assert.deepEqual(display, { interaction: { keyboard: ['Space'] } });
 });
 
-test('applyDisplayJSON_refInteractionReplacesMousePrefs', () => {
+test('applyDisplayJSON_refInteractionMergesMouseFlags', () => {
   const [display] = DisplayForItem(
     { display: { interaction: { mouse: { scroll: true, drag: true, hover: true } } } },
     {
@@ -146,7 +146,9 @@ test('applyDisplayJSON_refInteractionReplacesMousePrefs', () => {
     },
     null
   );
-  assert.deepEqual(display, { interaction: { mouse: { click: false } } });
+  assert.deepEqual(display, {
+    interaction: { mouse: { click: false, scroll: true, drag: true, hover: true } },
+  });
 });
 
 test('applyDisplayJSON_refInteractionClearsKeyboardWithEmptyArray', () => {
@@ -161,7 +163,7 @@ test('applyDisplayJSON_refInteractionClearsKeyboardWithEmptyArray', () => {
     },
     null
   );
-  assert.deepEqual(display, { interaction: { keyboard: ['KeyA'] } });
+  assert.deepEqual(display, { interaction: { keyboard: [] } });
 });
 
 test('DisplayForItem_itemMouseFalseOverridesRefFlag', () => {
@@ -185,11 +187,24 @@ test('DisplayForItem_itemMouseFalseOverridesRefFlag', () => {
   });
 });
 
-test('DisplayForItem_itemKeyboardEmptyDoesNotClearInheritedKeyboard', () => {
-  const [display] = DisplayForItem({ display: { interaction: { keyboard: ['KeyA'] } } }, null, {
-    display: { interaction: { keyboard: [] } },
-  });
-  assert.deepEqual(display, { interaction: { keyboard: ['KeyA'] } });
+test('DisplayForItem_emptyKeyboardClearsInheritedKeyboardInEveryLayer', () => {
+  const def = { display: { interaction: { keyboard: ['KeyA'] } } };
+  const empty = { interaction: { keyboard: [] } };
+  for (const item of [{ display: empty }, { override: { display: empty } }]) {
+    const [display] = DisplayForItem(def, null, item);
+    assert.deepEqual(display, { interaction: { keyboard: [] } });
+  }
+  // With nothing inherited, the explicit empty list is still reported.
+  const [display] = DisplayForItem(null, null, { display: empty });
+  assert.deepEqual(display, { interaction: { keyboard: [] } });
+});
+
+test('DisplayForItem_absentOrNullKeyboardInherits', () => {
+  const def = { display: { interaction: { keyboard: ['KeyA'] } } };
+  for (const interaction of [{}, { keyboard: null } as unknown as object]) {
+    const [display] = DisplayForItem(def, null, { display: { interaction } });
+    assert.deepEqual(display, { interaction: { keyboard: ['KeyA'] } });
+  }
 });
 
 test('DisplayForItem_itemAutoplayFalseOverlay', () => {
@@ -228,7 +243,7 @@ test('DisplayForItem_itemFalseOverridesDefaultTrue', () => {
     { display: { interaction: { mouse: { click: false }, keyboard: [] } } }
   );
   assert.deepEqual(display, {
-    interaction: { mouse: { click: false, hover: true }, keyboard: ['Space'] },
+    interaction: { mouse: { click: false, hover: true }, keyboard: [] },
   });
 });
 
