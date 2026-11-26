@@ -14,6 +14,7 @@ export { transform as JcsTransform } from './jcs/index.js';
 import * as validate from './validate/index.js';
 import type { RequireSignaturesOptions } from './validate/index.js';
 import { parsePlaylist } from './playlist/index.js';
+import { PlaylistByFields } from './validate/playlist-by-fields.js';
 export * from './sign/index.js';
 export {
   parsePlaylist,
@@ -24,6 +25,7 @@ export {
   clonePlaylistWithDynamicQuery,
   ResolveDynamicQuery,
 } from './playlist/index.js';
+export type { DynamicQueryOptions } from './playlist/index.js';
 export {
   parseDisplayAt,
   parseDisplayAtNanoseconds,
@@ -240,7 +242,7 @@ function assertArray(value: unknown, field: string, label: string) {
 
 export function ParseAndValidatePlaylist(data: Buffer | string) {
   try {
-    SchemaHooks.PlaylistCoreSchemaValidate(data);
+    PlaylistByFields(data);
   } catch (err) {
     throw errors.codeFromValidation(errors.ErrorCode.PlaylistInvalid, err) ?? err;
   }

@@ -16,39 +16,7 @@ import type { DynamicQueryBuilder } from './dynamic-query.js';
 import type { EntityBuilder } from './entity.js';
 import type { NoteBuilder } from './note.js';
 import type { PlaylistItemBuilder } from './playlist-item.js';
-import {
-  Playlist as ValidatePlaylist,
-  PlaylistWithContentRatingExtension as ValidatePlaylistWithCrExt,
-  PlaylistWithPlaylistsAndContentRatingExtensions as ValidatePlaylistWithExtAndCrExt,
-  PlaylistWithPlaylistsExtension as ValidatePlaylistWithExt,
-} from '../validate/index.js';
-
-function hasPlaylistsExtensionFields(doc: Playlist): boolean {
-  if (
-    doc.note !== undefined ||
-    doc.curators !== undefined ||
-    doc.summary !== undefined ||
-    doc.openAt !== undefined ||
-    doc.coverImage !== undefined ||
-    doc.dynamicQuery !== undefined ||
-    doc.links !== undefined ||
-    doc.visibility !== undefined ||
-    doc.satellites !== undefined
-  ) {
-    return true;
-  }
-  return doc.items.some(
-    item =>
-      item.note !== undefined || item.displayAt !== undefined || item.inlineManifest !== undefined
-  );
-}
-
-/** True when any item carries a draft content-rating extension field (registry 1.0.7). */
-function hasContentRatingFields(doc: Playlist): boolean {
-  return doc.items.some(
-    item => item.contentRating !== undefined || item.contentReasons !== undefined
-  );
-}
+import { PlaylistByFields } from '../validate/playlist-by-fields.js';
 
 export class PlaylistBuilder {
   private doc: {
@@ -207,11 +175,8 @@ export class PlaylistBuilder {
   }
 
   /**
-   * Build an unsigned playlist document and schema-validate it. Picks the narrowest
-   * schema the document's fields require: core-only, the playlists extension, the
-   * draft content-rating extension, or both extensions composed together (or when
-   * `items` is empty, which requires `dynamicQuery` and so always needs the playlists
-   * extension's relaxed core bundle).
+   * Build an unsigned playlist document and schema-validate it against the schema its fields
+   * require (see `PlaylistByFields`).
    */
   build(): Playlist {
     if (this.doc.id === undefined) this.doc.id = generateId();
@@ -236,18 +201,7 @@ export class PlaylistBuilder {
       ...(this.doc.satellites === undefined ? {} : { satellites: this.doc.satellites }),
     };
 
-    const needsPlaylistsExt = hasPlaylistsExtensionFields(out) || out.items.length === 0;
-    const needsContentRating = hasContentRatingFields(out);
-
-    if (needsPlaylistsExt && needsContentRating) {
-      ValidatePlaylistWithExtAndCrExt(out, { requireSignatures: false });
-    } else if (needsPlaylistsExt) {
-      ValidatePlaylistWithExt(out, { requireSignatures: false });
-    } else if (needsContentRating) {
-      ValidatePlaylistWithCrExt(out, { requireSignatures: false });
-    } else {
-      ValidatePlaylist(out, { requireSignatures: false });
-    }
+    PlaylistByFields(out, { requireSignatures: false });
     return structuredClone(out);
   }
 }

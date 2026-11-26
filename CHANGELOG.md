@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here.
 
+## Unreleased
+
+- `parsePlaylist`, `parseDP1Playlist` and `ParseAndValidatePlaylist` validate against the schema
+  the playlist's fields require (core, playlists extension, content-rating, or both), as
+  `PlaylistBuilder.build()` does. A playlist with `items: []` and `dynamicQuery` is accepted again;
+  a playlist whose extension fields violate their schema is now rejected.
+- `dynamicQuery`: an invalid response item is discarded and reported (`opts.onInvalidItem`, else
+  `console.warn`) instead of failing the whole batch.
+- `DisplayForItem`: a ref manifest's `interaction.mouse` merges flag by flag instead of replacing
+  the whole object.
+
 ## 2.5.1 — 2026-11-09
 
 Adds the Playlist Extension's `satellites[]` field from the draft DP-1 amendment

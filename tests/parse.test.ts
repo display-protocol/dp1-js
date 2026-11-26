@@ -10,6 +10,8 @@ import {
   ParseAndValidateRefManifest,
   ParseAndValidateChannel,
   ParseDPVersion,
+  parsePlaylist,
+  PlaylistBuilder,
   WarnMajorMismatch,
 } from '../src/index.js';
 import { ErrValidation, withCode, codeFromValidation, ErrorCode } from '../src/errors.js';
@@ -173,4 +175,43 @@ test('CodeFromValidationWrappers', () => {
 test('CodedError_and_WithCode', () => {
   const err = withCode(ErrorCode.PlaylistInvalid, new Error('boom'));
   assert.equal((err as { code?: string } | undefined)?.code, ErrorCode.PlaylistInvalid);
+});
+
+test('read path picks the schema from the playlist fields, as build() does', () => {
+  const built = new PlaylistBuilder()
+    .title('Dynamic')
+    .dynamicQuery({
+      profile: 'https-json-v1',
+      endpoint: 'https://example.com/items',
+      responseMapping: { itemsPath: 'items', itemSchema: 'dp1/1.1' },
+    })
+    .build();
+  const unsigned = { requireSignatures: false };
+  assert.deepEqual(parsePlaylist(built, unsigned), built);
+  assert.equal(parseDP1Playlist(built, unsigned).error, null);
+  const signed = { ...built, signature: `ed25519:${'0'.repeat(128)}` };
+  assert.deepEqual(ParseAndValidatePlaylist(JSON.stringify(signed)), signed);
+  assert.deepEqual(ParseAndValidatePlaylist(Buffer.from(JSON.stringify(signed))), signed);
+
+  // Empty items is only allowed together with dynamicQuery.
+  const { dynamicQuery: _dq, ...noQuery } = signed;
+  assert.throws(() => ParseAndValidatePlaylist(JSON.stringify(noQuery)));
+
+  // Extension and content-rating fields are held to their schemas.
+  const base = {
+    dpVersion: '1.1.0',
+    title: 'x',
+    items: [{ source: 'https://a' }],
+  };
+  assert.equal(parseDP1Playlist(base, unsigned).error, null);
+  for (const bad of [
+    { ...base, openAt: '2026-01-01' },
+    { ...base, visibility: 7 },
+    { ...base, items: [{ source: 'https://a', displayAt: 7 }] },
+    { ...base, items: [{ source: 'https://a', contentRating: 7 }] },
+    { ...base, openAt: '2026-01-01', items: [{ source: 'https://a', contentRating: 'general' }] },
+    { ...base, items: [null] },
+  ]) {
+    assert.ok(parseDP1Playlist(bad, unsigned).error, JSON.stringify(bad));
+  }
 });

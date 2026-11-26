@@ -151,8 +151,10 @@ function applyDisplayJSON(dst: DisplayPrefs, src: DisplayControls) {
           dst.interaction.keyboard = parsed.keyboard;
         }
       }
+      // Per flag, not per object: a manifest that names only `click` leaves the other flags as
+      // the lower layer set them (ref-manifest §7, last write wins within the same key path).
       if (parsed.mouse !== undefined) {
-        dst.interaction.mouse = parsed.mouse;
+        dst.interaction.mouse = { ...dst.interaction.mouse, ...parsed.mouse };
       }
     }
   }

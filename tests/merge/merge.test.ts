@@ -97,7 +97,7 @@ test('DisplayForItem_fullOverlay', () => {
     autoplay: true,
     interaction: {
       keyboard: ['Enter'],
-      mouse: { scroll: true, drag: true, hover: true },
+      mouse: { click: true, scroll: true, drag: true, hover: true },
     },
     userOverrides: { scaling: true, margin: true },
     margin: '5%',
@@ -134,7 +134,7 @@ test('applyDisplayJSON_refInteractionKeepsKeyboardWhenMouseNull', () => {
   assert.deepEqual(display, { interaction: { keyboard: ['Space'] } });
 });
 
-test('applyDisplayJSON_refInteractionReplacesMousePrefs', () => {
+test('applyDisplayJSON_refInteractionMergesMouseFlags', () => {
   const [display] = DisplayForItem(
     { display: { interaction: { mouse: { scroll: true, drag: true, hover: true } } } },
     {
@@ -146,7 +146,9 @@ test('applyDisplayJSON_refInteractionReplacesMousePrefs', () => {
     },
     null
   );
-  assert.deepEqual(display, { interaction: { mouse: { click: false } } });
+  assert.deepEqual(display, {
+    interaction: { mouse: { click: false, scroll: true, drag: true, hover: true } },
+  });
 });
 
 test('applyDisplayJSON_refInteractionClearsKeyboardWithEmptyArray', () => {

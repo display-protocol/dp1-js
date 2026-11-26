@@ -1,7 +1,7 @@
 import { lookup as dnsLookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { Buffer } from 'node:buffer';
-import * as validate from '../validate/index.js';
+import { PlaylistByFields } from '../validate/playlist-by-fields.js';
 import type { RequireSignaturesOptions } from '../validate/index.js';
 import { PlaylistItemWithPlaylistsAndContentRatingExtensions } from '../validate/index.js';
 
@@ -46,6 +46,15 @@ type PlaylistLike =
   | null
   | undefined;
 
+export type DynamicQueryOptions = {
+  AllowInsecureHTTP?: boolean;
+  /**
+   * Called for each response item that is discarded because it is not a valid PlaylistItem;
+   * `index` is its position in the response array. Defaults to `console.warn`.
+   */
+  onInvalidItem?: (error: Error, index: number) => void;
+};
+
 type NetAddressLike = { address?: string; family?: number | string } | null | undefined;
 type DynamicQueryResponseMappingLike =
   | {
@@ -74,14 +83,15 @@ type DynamicQueryLike =
   | undefined;
 
 /**
- * Validate an already-parsed playlist against the published core DP-1 schema and return it.
+ * Validate an already-parsed playlist against the published DP-1 schema its fields require (core,
+ * the playlists extension, the draft content-rating extension, or both) and return it.
  * Throws a validation error (with `details`) for any document the schema rejects.
  * Like `validate.Playlist`, signatures are required unless `{ requireSignatures: false }`.
  */
 export function parsePlaylist(doc: PlaylistLike, options?: RequireSignaturesOptions) {
   if (!doc || typeof doc !== 'object' || Array.isArray(doc))
     throw new Error('dp1: playlist must be an object');
-  validate.Playlist(doc, options);
+  PlaylistByFields(doc, options);
   return doc;
 }
 
@@ -102,7 +112,7 @@ export class PlaylistDocument {
     ctx: unknown,
     params: Record<string, string>,
     client: { fetch?: typeof fetch } | undefined,
-    opts: { AllowInsecureHTTP?: boolean } | null | undefined
+    opts: DynamicQueryOptions | null | undefined
   ) {
     return ResolveDynamicQuery(this as PlaylistLike, ctx, params, client, opts);
   }
@@ -182,7 +192,7 @@ async function validateDNSHostProduction(_ctx: unknown, host: string) {
 async function validateDynamicQueryRequestURL(
   ctx: unknown,
   u: URL,
-  opts: { AllowInsecureHTTP?: boolean } | null | undefined
+  opts: DynamicQueryOptions | null | undefined
 ) {
   if (!u) throw new Error(`${ErrDynamicQueryEndpointPolicy.message}: nil URL`);
   const allowInsecure = !!opts?.AllowInsecureHTTP;
@@ -256,7 +266,7 @@ async function fetchDynamicQueryResponseBody(
   dq: DynamicQueryLike,
   params: Record<string, string> | undefined,
   client: { fetch?: typeof fetch } | undefined,
-  opts: { AllowInsecureHTTP?: boolean } | null | undefined
+  opts: DynamicQueryOptions | null | undefined
 ) {
   const hydrated = HydrateDynamicQueryString(dq?.Query || dq?.query || '', params || {});
   const req = await buildDynamicQueryRequest(ctx, dq, hydrated);
@@ -332,7 +342,20 @@ function applyItemMap(raw: Buffer, itemMap: Record<string, string> = {}) {
   return Buffer.from(JSON.stringify(out));
 }
 
-function playlistItemsFromDynamicQueryBody(body: Buffer, dq: DynamicQueryLike) {
+function warnInvalidItem(error: Error, index: number) {
+  console.warn(`dp1: discarded dynamicQuery item ${index}: ${error.message}`);
+}
+
+/**
+ * Turn a response body into PlaylistItems. A response that cannot be read as an item list throws;
+ * a single item that is invalid is reported and discarded, and the valid ones are returned
+ * (playlists extension §4.6.2).
+ */
+function playlistItemsFromDynamicQueryBody(
+  body: Buffer,
+  dq: DynamicQueryLike,
+  onInvalidItem: (error: Error, index: number) => void = warnInvalidItem
+) {
   const profile = dq?.Profile || dq?.profile;
   if (profile !== ProfileHTTPSJSONV1 && profile !== ProfileGraphQLV1)
     throw new Error(`${ErrDynamicQueryUnknownProfile.message}: "${profile}"`);
@@ -340,9 +363,9 @@ function playlistItemsFromDynamicQueryBody(body: Buffer, dq: DynamicQueryLike) {
   if (!rm) throw new Error(`${ErrDynamicQueryRequest.message}: missing responseMapping`);
   const rawItems = extractDynamicItems(body, profile, rm);
   const out = [];
-  for (const raw of rawItems) {
-    const itemJSON = applyItemMap(raw, rm.ItemMap || rm.itemMap || {});
+  for (const [index, raw] of rawItems.entries()) {
     try {
+      const itemJSON = applyItemMap(raw, rm.ItemMap || rm.itemMap || {});
       // The combined playlists + content-rating validator, so a dynamic item carrying a
       // malformed contentRating / contentReasons is rejected here rather than passing
       // through unrated (dp1-go v0.6.2 parity: "Dynamic-query items now use the combined
@@ -351,7 +374,10 @@ function playlistItemsFromDynamicQueryBody(body: Buffer, dq: DynamicQueryLike) {
       out.push(JSON.parse(Buffer.from(itemJSON).toString('utf8')));
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      throw new Error(`${ErrDynamicQueryItemInvalid.message}: ${message}`);
+      onInvalidItem(
+        new Error(`${ErrDynamicQueryItemInvalid.message}: ${message}`, { cause: err }),
+        index
+      );
     }
   }
   return out;
@@ -362,18 +388,18 @@ export async function PlaylistItemsFromDynamicQuery(
   dq: DynamicQueryLike,
   params: Record<string, string> | undefined,
   client: { fetch?: typeof fetch } | undefined,
-  opts: { AllowInsecureHTTP?: boolean } | null | undefined
+  opts: DynamicQueryOptions | null | undefined
 ) {
   if (!dq) throw new Error(`${ErrDynamicQueryRequest.message}: nil dynamicQuery`);
   const body = await fetchDynamicQueryResponseBody(ctx, dq, params, client, opts);
-  return playlistItemsFromDynamicQueryBody(body, dq);
+  return playlistItemsFromDynamicQueryBody(body, dq, opts?.onInvalidItem);
 }
 
 export async function clonePlaylistWithDynamicQuery(
   p: PlaylistLike,
   params: Record<string, string> | undefined,
   client: { fetch?: typeof fetch } | undefined,
-  opts: { AllowInsecureHTTP?: boolean } | null | undefined
+  opts: DynamicQueryOptions | null | undefined
 ) {
   return clonePlaylistWithDynamicQueryCtx(p, undefined, params, client, opts);
 }
@@ -383,7 +409,7 @@ async function clonePlaylistWithDynamicQueryCtx(
   ctx: unknown,
   params: Record<string, string> | undefined,
   client: { fetch?: typeof fetch } | undefined,
-  opts: { AllowInsecureHTTP?: boolean } | null | undefined
+  opts: DynamicQueryOptions | null | undefined
 ) {
   if (!p) throw new Error(`${ErrDynamicQueryRequest.message}: nil playlist`);
   const out = clonePlaylist(p) as {
@@ -408,7 +434,7 @@ export async function ResolveDynamicQuery(
   ctx: unknown,
   params: Record<string, string> | undefined,
   client: { fetch?: typeof fetch } | undefined,
-  opts: { AllowInsecureHTTP?: boolean } | null | undefined
+  opts: DynamicQueryOptions | null | undefined
 ) {
   return clonePlaylistWithDynamicQueryCtx(p, ctx, params, client, opts);
 }
